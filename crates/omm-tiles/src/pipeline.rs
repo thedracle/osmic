@@ -5,14 +5,42 @@ use rayon::prelude::*;
 use tracing::info;
 
 use omm_core::bbox::BBox;
+use omm_core::clip::clip_geometry;
 use omm_core::error::OmmResult;
 use omm_core::tile::{TileCoord, Zoom};
 use omm_geo::projection::bbox_to_tile_range;
 use omm_osm::feature::Feature;
 use omm_osm::tags::TagStore;
 
+use omm_core::geometry::Geometry;
+use omm_osm::feature::FeatureKind;
+use omm_osm::tags::Tags;
+
 use crate::coord::TileTransform;
 use crate::mvt;
+
+/// A feature with geometry clipped to a tile bbox.
+struct ClippedFeature<'a> {
+    id: i64,
+    kind: FeatureKind,
+    geometry: Geometry,
+    tags: &'a Tags,
+}
+
+impl<'a> mvt::TileFeature for ClippedFeature<'a> {
+    fn id(&self) -> i64 {
+        self.id
+    }
+    fn kind(&self) -> FeatureKind {
+        self.kind
+    }
+    fn geometry(&self) -> &Geometry {
+        &self.geometry
+    }
+    fn tags(&self) -> &Tags {
+        self.tags
+    }
+}
 
 /// Configuration for tile generation.
 #[derive(Debug, Clone)]
@@ -158,31 +186,49 @@ impl<'a> TileGenerator<'a> {
     }
 
     /// Generate a single MVT tile from pre-computed feature indices.
+    ///
+    /// Clips all feature geometries to the tile bbox (with 5% buffer)
+    /// before MVT encoding to prevent "geometry exceeds extent" issues.
     fn generate_single_tile(
         &self,
         coord: TileCoord,
         feature_indices: &[usize],
     ) -> Option<Vec<u8>> {
         let transform = TileTransform::new(&coord, self.config.extent);
+        let tile_bbox = coord.bbox();
 
-        // Group features by MVT layer name
-        let mut layer_map: HashMap<&str, Vec<(&Feature, usize)>> = HashMap::new();
+        // Clip features to tile bbox and group by layer
+        let mut layer_map: HashMap<&str, Vec<ClippedFeature>> = HashMap::new();
         for &idx in feature_indices {
             let feature = &self.features[idx];
-            let layer_name = feature.kind.layer_name();
-            layer_map.entry(layer_name).or_default().push((feature, idx));
+            // Clip geometry to tile bbox with 5% buffer for anti-aliasing
+            if let Some(clipped_geom) = clip_geometry(&feature.geometry, &tile_bbox, 0.05) {
+                let layer_name = feature.kind.layer_name();
+                layer_map.entry(layer_name).or_default().push(ClippedFeature {
+                    id: feature.id,
+                    kind: feature.kind,
+                    geometry: clipped_geom,
+                    tags: &feature.tags,
+                });
+            }
         }
 
         // Build layer entries for MVT encoding
-        let layer_entries: Vec<(&str, Vec<(&Feature, usize)>)> =
-            layer_map.into_iter().collect();
+        let layer_entries: Vec<(&str, Vec<&ClippedFeature>)> = layer_map
+            .iter()
+            .map(|(name, features)| (*name, features.iter().collect()))
+            .collect();
 
-        // Convert to the format expected by mvt::build_tile
-        let layer_refs: Vec<(&str, &[(&Feature, usize)])> = layer_entries
+        let layer_refs: Vec<(&str, &[&ClippedFeature])> = layer_entries
             .iter()
             .map(|(name, features)| (*name, features.as_slice()))
             .collect();
 
-        mvt::build_tile(self.config.extent, &transform, &layer_refs, self.tag_store)
+        mvt::build_tile_clipped(
+            self.config.extent,
+            &transform,
+            &layer_refs,
+            self.tag_store,
+        )
     }
 }

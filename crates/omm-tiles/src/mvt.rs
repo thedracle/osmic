@@ -1,7 +1,7 @@
 use mvt::{GeomData, GeomEncoder, GeomType, Tile};
 use omm_core::geometry::Geometry;
-use omm_osm::feature::Feature;
-use omm_osm::tags::{TagStore, WellKnownKey};
+use omm_osm::feature::{Feature, FeatureKind};
+use omm_osm::tags::{TagStore, Tags, WellKnownKey};
 
 use crate::coord::TileTransform;
 
@@ -90,6 +90,60 @@ pub fn build_tile(
                     mvt_feature.add_tag_string("class", feature.kind.class_name());
 
                     if let Some(name_val) = feature.tags.get(name_key) {
+                        mvt_feature.add_tag_string("name", tag_store.resolve(name_val));
+                    }
+
+                    layer = mvt_feature.into_layer();
+                }
+                Err(_) => continue,
+            }
+        }
+
+        if layer.num_features() > 0 {
+            let _ = tile.add_layer(layer);
+        }
+    }
+
+    if tile.num_layers() == 0 {
+        return None;
+    }
+
+    tile.to_bytes().ok()
+}
+
+/// A clipped feature reference for tile encoding.
+pub trait TileFeature {
+    fn id(&self) -> i64;
+    fn kind(&self) -> FeatureKind;
+    fn geometry(&self) -> &Geometry;
+    fn tags(&self) -> &Tags;
+}
+
+/// Build an MVT tile from clipped features grouped by layer name.
+pub fn build_tile_clipped<F: TileFeature>(
+    extent: u32,
+    transform: &TileTransform,
+    layer_features: &[(&str, &[&F])],
+    tag_store: &TagStore,
+) -> Option<Vec<u8>> {
+    let mut tile = Tile::new(extent);
+    let name_key = tag_store.well_known(WellKnownKey::Name);
+
+    for &(layer_name, features) in layer_features {
+        if features.is_empty() {
+            continue;
+        }
+
+        let mut layer = tile.create_layer(layer_name);
+
+        for &feature in features {
+            match encode_geometry(feature.geometry(), transform) {
+                Ok(geom_data) => {
+                    let mut mvt_feature = layer.into_feature(geom_data);
+                    mvt_feature.set_id(feature.id() as u64);
+                    mvt_feature.add_tag_string("class", feature.kind().class_name());
+
+                    if let Some(name_val) = feature.tags().get(name_key) {
                         mvt_feature.add_tag_string("name", tag_store.resolve(name_val));
                     }
 

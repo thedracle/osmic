@@ -1,6 +1,7 @@
-use geo_types::{Coord, LineString, Polygon};
+use geo_types::{Coord, LineString, MultiPolygon, Polygon};
 
 use crate::bbox::BBox;
+use crate::geometry::Geometry;
 
 /// Cohen-Sutherland region codes.
 const INSIDE: u8 = 0b0000;
@@ -137,6 +138,64 @@ pub fn clip_polygon(poly: &Polygon<f64>, bbox: &BBox) -> Option<Polygon<f64>> {
         .collect();
 
     Some(Polygon::new(LineString::new(exterior), interiors))
+}
+
+/// Clip a geometry to a bounding box with an optional buffer.
+///
+/// Returns `None` if the geometry is entirely outside the bbox.
+/// For lines, may return multiple segments if the line crosses the bbox boundary.
+pub fn clip_geometry(geom: &Geometry, bbox: &BBox, buffer_fraction: f64) -> Option<Geometry> {
+    let buffered = if buffer_fraction > 0.0 {
+        let bw = bbox.width() * buffer_fraction;
+        let bh = bbox.height() * buffer_fraction;
+        BBox::new(
+            bbox.min_lon - bw,
+            bbox.min_lat - bh,
+            bbox.max_lon + bw,
+            bbox.max_lat + bh,
+        )
+    } else {
+        *bbox
+    };
+
+    match geom {
+        Geometry::Point(p) => {
+            if buffered.contains_point(p.x(), p.y()) {
+                Some(Geometry::Point(*p))
+            } else {
+                None
+            }
+        }
+        Geometry::Line(ls) => {
+            let segments = clip_line(ls, &buffered);
+            if segments.is_empty() {
+                None
+            } else if segments.len() == 1 {
+                Some(Geometry::Line(segments.into_iter().next().unwrap()))
+            } else {
+                // Return the longest segment to keep the label position meaningful
+                let longest = segments
+                    .into_iter()
+                    .max_by_key(|s| s.coords().count())
+                    .unwrap();
+                Some(Geometry::Line(longest))
+            }
+        }
+        Geometry::Polygon(poly) => {
+            clip_polygon(poly, &buffered).map(Geometry::Polygon)
+        }
+        Geometry::MultiPolygon(mp) => {
+            let clipped: Vec<Polygon<f64>> = mp
+                .iter()
+                .filter_map(|poly| clip_polygon(poly, &buffered))
+                .collect();
+            if clipped.is_empty() {
+                None
+            } else {
+                Some(Geometry::MultiPolygon(MultiPolygon::new(clipped)))
+            }
+        }
+    }
 }
 
 fn sutherland_hodgman(vertices: &[Coord<f64>], bbox: &BBox) -> Vec<Coord<f64>> {
