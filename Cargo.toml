@@ -11,6 +11,7 @@ members = [
     "crates/omm-text",
     "crates/omm-app",
     "crates/omm-serve",
+    "crates/omm-extract",
     "crates/omm",
     "bins/omm-cli",
     "bins/omm-viewer",
@@ -32,6 +33,7 @@ omm-render = { path = "crates/omm-render" }
 omm-text = { path = "crates/omm-text" }
 omm-app = { path = "crates/omm-app" }
 omm-serve = { path = "crates/omm-serve" }
+omm-extract = { path = "crates/omm-extract" }
 
 # Parsing & data
 osmpbf = "0.3"

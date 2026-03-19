@@ -3374,6 +3374,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "omm-core",
+ "omm-extract",
  "omm-index",
  "omm-osm",
  "omm-style",
@@ -3390,6 +3391,23 @@ dependencies = [
  "omm-geo",
  "serde",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "omm-extract"
+version = "0.1.0"
+dependencies = [
+ "geo-types",
+ "omm-core",
+ "omm-index",
+ "omm-osm",
+ "osmpbf",
+ "rayon",
+ "rstar 0.12.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]

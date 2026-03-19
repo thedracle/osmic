@@ -703,7 +703,25 @@ impl MapApp {
         self.labels = collect_labels(&features);
         info!(labels = self.labels.len(), "Labels collected");
 
-        let (vertices, indices) = tessellate_features(&features, self.camera.zoom);
+        let (mut vertices, mut indices) = tessellate_features(&features, self.camera.zoom);
+
+        // Cap vertex/index buffers to stay within wgpu's 268MB limit
+        // Vertex = 24 bytes, so 8M vertices = 192MB
+        const MAX_VERTICES: usize = 8_000_000;
+        const MAX_INDICES: usize = 24_000_000;
+        if vertices.len() > MAX_VERTICES {
+            vertices.truncate(MAX_VERTICES);
+            // Find the last valid triangle boundary in indices
+            let max_idx = MAX_INDICES.min(indices.len());
+            let trimmed = (max_idx / 3) * 3; // align to triangle boundaries
+            indices.truncate(trimmed);
+            // Remove indices that reference truncated vertices
+            indices.retain(|&i| (i as usize) < MAX_VERTICES);
+            let trimmed = (indices.len() / 3) * 3;
+            indices.truncate(trimmed);
+            info!(vertices = vertices.len(), indices = indices.len(), "Buffer capped");
+        }
+
         info!(
             vertices = vertices.len(),
             indices = indices.len(),
