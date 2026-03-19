@@ -124,7 +124,10 @@ fn orthographic(left: f32, right: f32, bottom: f32, top: f32) -> [[f32; 4]; 4] {
 
 // --- Tessellation ---
 
-fn tessellate_features(features: &[DecodedFeature]) -> (Vec<Vertex>, Vec<u32>) {
+fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<Vertex>, Vec<u32>) {
+    // Scale factor: target pixel widths → world degrees
+    // At 1280px wide viewing `view_degrees`, 1 pixel = view_degrees/1280
+    let px_to_deg = (view_degrees / 1280.0) as f32;
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
 
@@ -167,8 +170,10 @@ fn tessellate_features(features: &[DecodedFeature]) -> (Vec<Vertex>, Vec<u32>) {
             }
         }
         if is_line {
-            if let Some((color, width)) = line_style(&feature.layer, feature.class.as_deref()) {
-                tessellate_stroke(&feature.geometry, &color, width, &mut vertices, &mut indices);
+            if let Some((color, px_width)) = line_style(&feature.layer, feature.class.as_deref()) {
+                // Convert pixel width to world-space degrees
+                let world_width = px_width * px_to_deg;
+                tessellate_stroke(&feature.geometry, &color, world_width, &mut vertices, &mut indices);
             }
         }
     }
@@ -293,23 +298,24 @@ fn area_color(layer: &str, class: Option<&str>) -> Option<Color> {
     }
 }
 
+/// Returns (color, width_in_pixels) for line features.
 fn line_style(layer: &str, class: Option<&str>) -> Option<(Color, f32)> {
     match layer {
         "highway" => {
             let (c, w) = match class.unwrap_or("") {
-                "motorway" | "motorway_link" => ("#e892a2", 0.002),
-                "trunk" | "trunk_link" => ("#f9b29c", 0.0015),
-                "primary" | "primary_link" => ("#fcd6a4", 0.001),
-                "secondary" | "secondary_link" => ("#f7fabf", 0.0008),
-                "tertiary" | "tertiary_link" => ("#ffffff", 0.0006),
-                "residential" => ("#ffffff", 0.0004),
-                _ => ("#cccccc", 0.0003),
+                "motorway" | "motorway_link" => ("#e892a2", 6.0),
+                "trunk" | "trunk_link" => ("#f9b29c", 5.0),
+                "primary" | "primary_link" => ("#fcd6a4", 4.0),
+                "secondary" | "secondary_link" => ("#f7fabf", 3.0),
+                "tertiary" | "tertiary_link" => ("#ffffff", 2.5),
+                "residential" => ("#ffffff", 1.5),
+                _ => ("#cccccc", 1.0),
             };
             Some((Color::from_hex(c).unwrap(), w))
         }
-        "railway" => Some((Color::from_hex("#bfbfbf").unwrap(), 0.0005)),
-        "boundary" => Some((Color::from_hex("#9e9cab").unwrap(), 0.0005)),
-        "water" => Some((Color::from_hex("#aad3df").unwrap(), 0.0008)),
+        "railway" => Some((Color::from_hex("#bfbfbf").unwrap(), 2.0)),
+        "boundary" => Some((Color::from_hex("#9e9cab").unwrap(), 2.0)),
+        "water" => Some((Color::from_hex("#aad3df").unwrap(), 3.0)),
         _ => None,
     }
 }
@@ -675,7 +681,7 @@ impl MapApp {
         self.labels = collect_labels(&features);
         info!(labels = self.labels.len(), "Labels collected");
 
-        let (vertices, indices) = tessellate_features(&features);
+        let (vertices, indices) = tessellate_features(&features, self.camera.zoom);
         info!(
             vertices = vertices.len(),
             indices = indices.len(),
