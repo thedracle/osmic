@@ -1,9 +1,10 @@
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use geo_types::{Coord, LineString, Polygon};
-use osmpbf::{Element, ElementReader};
+use geo_types::{Coord, LineString, MultiPolygon, Polygon};
+use osmpbf::{Element, ElementReader, RelMemberType};
 use tracing::info;
 
 use omm_core::bbox::BBox;
@@ -79,7 +80,7 @@ impl PbfProcessor {
         // Pass 2: Ways → Features
         info!("Pass 2: Processing ways...");
         let pass2_start = Instant::now();
-        let (features, way_count, bbox) = self.pass2_ways(pbf_path, node_store)?;
+        let (mut features, way_count, mut bbox) = self.pass2_ways(pbf_path, node_store)?;
         let pass2_duration = pass2_start.elapsed();
         info!(
             "Pass 2 complete: {} ways → {} features in {:.2}s",
@@ -88,10 +89,19 @@ impl PbfProcessor {
             pass2_duration.as_secs_f64()
         );
 
-        // Pass 3: Relations (stub for Phase 1)
-        info!("Pass 3: Counting relations...");
-        let relation_count = self.pass3_relations(pbf_path)?;
-        info!("Pass 3 complete: {} relations (assembly deferred)", relation_count);
+        // Pass 3: Multipolygon relation assembly
+        info!("Pass 3: Assembling multipolygon relations...");
+        let pass3_start = Instant::now();
+        let (mp_features, relation_count) =
+            self.pass3_relations(pbf_path, node_store, &mut bbox)?;
+        let mp_count = mp_features.len();
+        features.extend(mp_features);
+        info!(
+            "Pass 3 complete: {} relations → {} multipolygons in {:.2}s",
+            relation_count,
+            mp_count,
+            pass3_start.elapsed().as_secs_f64()
+        );
 
         let total_duration = total_start.elapsed();
         let feature_count = features.len() as u64;
@@ -223,20 +233,251 @@ impl PbfProcessor {
         Ok((features, way_count, bbox))
     }
 
-    /// Pass 3: Count relations (full multipolygon assembly deferred to later phase).
-    fn pass3_relations(&self, path: &Path) -> OmmResult<u64> {
+}
+
+struct RelationInfo {
+    id: i64,
+    tags: Tags,
+    outer_way_ids: Vec<i64>,
+    inner_way_ids: Vec<i64>,
+}
+
+/// Chain ways end-to-end to form closed rings.
+///
+/// OSM multipolygon outer/inner ways may need to be concatenated
+/// (the end node of one way == the start node of the next) to form
+/// a complete closed ring.
+fn chain_ways(
+    way_ids: &[i64],
+    way_geoms: &HashMap<i64, Vec<Coord<f64>>>,
+) -> Vec<Vec<Coord<f64>>> {
+    let mut remaining: Vec<Vec<Coord<f64>>> = way_ids
+        .iter()
+        .filter_map(|id| way_geoms.get(id).cloned())
+        .filter(|c| c.len() >= 2)
+        .collect();
+
+    let mut rings = Vec::new();
+
+    while !remaining.is_empty() {
+        let mut ring = remaining.swap_remove(0);
+
+        // Try to extend the ring by finding connecting ways
+        let mut changed = true;
+        while changed {
+            changed = false;
+            let end = match ring.last() {
+                Some(c) => *c,
+                None => break,
+            };
+            let start = ring[0];
+
+            // Check if ring is already closed
+            if ring.len() >= 4 && (end.x - start.x).abs() < 1e-8 && (end.y - start.y).abs() < 1e-8
+            {
+                break;
+            }
+
+            for i in 0..remaining.len() {
+                let candidate = &remaining[i];
+                let c_start = candidate[0];
+                let c_end = *candidate.last().unwrap();
+
+                if (end.x - c_start.x).abs() < 1e-8 && (end.y - c_start.y).abs() < 1e-8 {
+                    // Append candidate (forward)
+                    let mut way = remaining.swap_remove(i);
+                    ring.extend(way.drain(1..)); // skip duplicate start point
+                    changed = true;
+                    break;
+                } else if (end.x - c_end.x).abs() < 1e-8 && (end.y - c_end.y).abs() < 1e-8 {
+                    // Append candidate (reversed)
+                    let mut way = remaining.swap_remove(i);
+                    way.reverse();
+                    ring.extend(way.drain(1..));
+                    changed = true;
+                    break;
+                }
+            }
+        }
+
+        if ring.len() >= 3 {
+            rings.push(ring);
+        }
+    }
+
+    rings
+}
+
+impl PbfProcessor {
+    /// Pass 3: Assemble multipolygon relations.
+    ///
+    /// Sub-passes:
+    /// 3a: Scan relations to find multipolygons and collect member way IDs
+    /// 3b: Re-read PBF to build geometries for member ways
+    /// 3c: Assemble multipolygons from way geometries
+    fn pass3_relations(
+        &self,
+        path: &Path,
+        node_store: &dyn NodeLocationStore,
+        bbox: &mut BBox,
+    ) -> OmmResult<(Vec<Feature>, u64)> {
+        // 3a: Collect multipolygon relation info
+        let reader = ElementReader::from_path(path).map_err(|e| OmmError::Pbf(e.to_string()))?;
+        let tag_store = &self.tag_store;
+
+        let relations: Vec<RelationInfo> = reader
+            .par_map_reduce(
+                |element| {
+                    let mut local = Vec::new();
+                    if let Element::Relation(rel) = element {
+                        let mut is_mp = false;
+                        let mut tags = Tags::new();
+                        for (k, v) in rel.tags() {
+                            if k == "type" && v == "multipolygon" {
+                                is_mp = true;
+                            }
+                            tags.push(tag_store.intern_key(k), tag_store.intern_value(v));
+                        }
+                        if is_mp {
+                            let mut outers = Vec::new();
+                            let mut inners = Vec::new();
+                            for member in rel.members() {
+                                if member.member_type == RelMemberType::Way {
+                                    match member.role().unwrap_or("") {
+                                        "outer" | "" => outers.push(member.member_id),
+                                        "inner" => inners.push(member.member_id),
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            if !outers.is_empty() {
+                                local.push(RelationInfo {
+                                    id: rel.id(),
+                                    tags,
+                                    outer_way_ids: outers,
+                                    inner_way_ids: inners,
+                                });
+                            }
+                        }
+                    }
+                    local
+                },
+                Vec::new,
+                |mut a, b| {
+                    a.extend(b);
+                    a
+                },
+            )
+            .map_err(|e| OmmError::Pbf(e.to_string()))?;
+
+        let relation_count = relations.len() as u64;
+        info!(relations = relation_count, "Multipolygon relations found");
+
+        if relations.is_empty() {
+            return Ok((Vec::new(), 0));
+        }
+
+        // Collect all needed way IDs
+        let needed_ways: HashSet<i64> = relations
+            .iter()
+            .flat_map(|r| r.outer_way_ids.iter().chain(r.inner_way_ids.iter()))
+            .copied()
+            .collect();
+        info!(ways = needed_ways.len(), "Member ways to resolve");
+
+        // 3b: Re-read PBF to get geometries for member ways
         let reader = ElementReader::from_path(path).map_err(|e| OmmError::Pbf(e.to_string()))?;
 
-        reader
+        let way_geoms: HashMap<i64, Vec<Coord<f64>>> = reader
             .par_map_reduce(
-                |element| match element {
-                    Element::Relation(_) => 1u64,
-                    _ => 0,
+                |element| {
+                    let mut local: HashMap<i64, Vec<Coord<f64>>> = HashMap::new();
+                    if let Element::Way(way) = element {
+                        if needed_ways.contains(&way.id()) {
+                            let coords: Vec<Coord<f64>> = way
+                                .refs()
+                                .filter_map(|id| {
+                                    node_store.get(id).map(|ll| Coord {
+                                        x: ll.lon,
+                                        y: ll.lat,
+                                    })
+                                })
+                                .collect();
+                            if coords.len() >= 2 {
+                                local.insert(way.id(), coords);
+                            }
+                        }
+                    }
+                    local
                 },
-                || 0u64,
-                |a, b| a + b,
+                HashMap::new,
+                |mut a, b| {
+                    a.extend(b);
+                    a
+                },
             )
-            .map_err(|e| OmmError::Pbf(e.to_string()))
+            .map_err(|e| OmmError::Pbf(e.to_string()))?;
+
+        info!(resolved = way_geoms.len(), "Member way geometries resolved");
+
+        // 3c: Assemble multipolygons
+        let mut features = Vec::new();
+        for rel in &relations {
+            // Assemble outer rings by chaining ways
+            let outer_rings = chain_ways(&rel.outer_way_ids, &way_geoms);
+            if outer_rings.is_empty() {
+                continue;
+            }
+
+            let inner_rings = chain_ways(&rel.inner_way_ids, &way_geoms);
+
+            // Classify by tags
+            let kind = match classify::classify(&rel.tags, tag_store) {
+                Some(k) => k,
+                None => continue,
+            };
+
+            // Build polygon(s)
+            let geometry = if outer_rings.len() == 1 {
+                let exterior = LineString::new(outer_rings.into_iter().next().unwrap());
+                let holes: Vec<LineString<f64>> = inner_rings
+                    .into_iter()
+                    .map(LineString::new)
+                    .collect();
+                for c in exterior.coords() {
+                    bbox.expand(c.x, c.y);
+                }
+                Geometry::Polygon(Polygon::new(exterior, holes))
+            } else {
+                // Multiple outer rings → MultiPolygon
+                // Simple assignment: all inner rings go to the first polygon
+                // (proper assignment would check containment)
+                let mut polys: Vec<Polygon<f64>> = Vec::new();
+                for (i, ring) in outer_rings.into_iter().enumerate() {
+                    let exterior = LineString::new(ring);
+                    for c in exterior.coords() {
+                        bbox.expand(c.x, c.y);
+                    }
+                    let holes = if i == 0 {
+                        inner_rings.iter().map(|r| LineString::new(r.clone())).collect()
+                    } else {
+                        vec![]
+                    };
+                    polys.push(Polygon::new(exterior, holes));
+                }
+                Geometry::MultiPolygon(MultiPolygon::new(polys))
+            };
+
+            features.push(Feature {
+                id: rel.id,
+                kind,
+                geometry,
+                tags: rel.tags.clone(),
+            });
+        }
+
+        info!(features = features.len(), "Multipolygon features assembled");
+        Ok((features, relation_count))
     }
 }
 

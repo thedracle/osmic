@@ -8,6 +8,7 @@ use omm_core::bbox::BBox;
 use omm_core::clip::clip_geometry;
 use omm_core::error::OmmResult;
 use omm_core::tile::{TileCoord, Zoom};
+use omm_geo::simplify::simplify_geometry;
 use omm_geo::projection::bbox_to_tile_range;
 use omm_osm::feature::Feature;
 use omm_osm::tags::TagStore;
@@ -197,12 +198,15 @@ impl<'a> TileGenerator<'a> {
         let transform = TileTransform::new(&coord, self.config.extent);
         let tile_bbox = coord.bbox();
 
-        // Clip features to tile bbox and group by layer
+        // Simplify, clip, and group features by layer
+        let zoom = coord.z.0;
         let mut layer_map: HashMap<&str, Vec<ClippedFeature>> = HashMap::new();
         for &idx in feature_indices {
             let feature = &self.features[idx];
-            // Clip geometry to tile bbox with 5% buffer for anti-aliasing
-            if let Some(clipped_geom) = clip_geometry(&feature.geometry, &tile_bbox, 0.05) {
+            // Simplify geometry for current zoom level (reduces vertex count)
+            let simplified = simplify_geometry(&feature.geometry, zoom);
+            // Clip to tile bbox with 5% buffer for anti-aliasing
+            if let Some(clipped_geom) = clip_geometry(&simplified, &tile_bbox, 0.05) {
                 let layer_name = feature.kind.layer_name();
                 layer_map.entry(layer_name).or_default().push(ClippedFeature {
                     id: feature.id,
