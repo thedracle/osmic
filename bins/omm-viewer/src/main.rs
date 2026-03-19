@@ -368,23 +368,24 @@ fn collect_labels(features: &[DecodedFeature]) -> Vec<MapLabel> {
             _ => continue,
         };
 
-        // (font_size, color, min_zoom_degrees) - min_zoom_degrees = max degrees visible for label to appear
+        // (font_size, color, max_view_deg) - labels appear when camera.zoom <= max_view_deg
+        // Wider values = visible when more zoomed out
         let (font_size, color, max_view_deg) = match f.layer.as_str() {
             "highway" => match f.class.as_deref().unwrap_or("") {
-                "motorway" | "trunk" => (12.0, [0x55, 0x55, 0x55, 0xFF], 2.0),
-                "primary" => (11.0, [0x55, 0x55, 0x55, 0xFF], 0.5),
-                "secondary" | "tertiary" => (10.0, [0x66, 0x66, 0x66, 0xFF], 0.2),
-                "residential" | "unclassified" => (9.0, [0x77, 0x77, 0x77, 0xFF], 0.05),
-                _ => (9.0, [0x77, 0x77, 0x77, 0xFF], 0.03),
+                "motorway" | "trunk" => (12.0, [0x55, 0x55, 0x55, 0xFF], 20.0),
+                "primary" => (11.0, [0x55, 0x55, 0x55, 0xFF], 5.0),
+                "secondary" | "tertiary" => (10.0, [0x66, 0x66, 0x66, 0xFF], 1.0),
+                "residential" | "unclassified" => (9.0, [0x77, 0x77, 0x77, 0xFF], 0.2),
+                _ => (9.0, [0x77, 0x77, 0x77, 0xFF], 0.1),
             },
-            "water" => (11.0, [0x6b, 0x9d, 0xaf, 0xFF], 1.0),
+            "water" => (11.0, [0x6b, 0x9d, 0xaf, 0xFF], 10.0),
             "place" => match f.class.as_deref().unwrap_or("") {
-                "city" => (20.0, [0x33, 0x33, 0x33, 0xFF], 50.0),
-                "town" => (15.0, [0x44, 0x44, 0x44, 0xFF], 5.0),
-                "village" => (12.0, [0x55, 0x55, 0x55, 0xFF], 1.0),
-                _ => (10.0, [0x66, 0x66, 0x66, 0xFF], 0.5),
+                "city" => (20.0, [0x33, 0x33, 0x33, 0xFF], 360.0),
+                "town" => (15.0, [0x44, 0x44, 0x44, 0xFF], 30.0),
+                "village" => (12.0, [0x55, 0x55, 0x55, 0xFF], 5.0),
+                _ => (10.0, [0x66, 0x66, 0x66, 0xFF], 2.0),
             },
-            "leisure" => (10.0, [0x3a, 0x7a, 0x3a, 0xFF], 0.3),
+            "leisure" => (10.0, [0x3a, 0x7a, 0x3a, 0xFF], 1.0),
             _ => continue,
         };
 
@@ -607,6 +608,8 @@ struct MapApp {
     last_cursor: PhysicalPosition<f64>,
     needs_retessellate: bool,
     current_tile_zoom: u8,
+    /// Bbox of the area we've loaded tiles for
+    loaded_bbox: BBox,
 }
 
 struct GpuState {
@@ -646,17 +649,27 @@ impl MapApp {
             last_cursor: PhysicalPosition::new(0.0, 0.0),
             needs_retessellate: true,
             current_tile_zoom: 0,
+            loaded_bbox: BBox::empty(),
         }
     }
 
     fn load_and_tessellate(&mut self) {
         let gpu = self.gpu.as_ref().unwrap();
         let aspect = gpu.config.width as f64 / gpu.config.height as f64;
-        let bbox = self.camera.view_bbox(aspect);
+        let view_bbox = self.camera.view_bbox(aspect);
+        // Load tiles with 50% buffer around viewport for smooth panning
+        let bw = view_bbox.width() * 0.5;
+        let bh = view_bbox.height() * 0.5;
+        let load_bbox = BBox::new(
+            view_bbox.min_lon - bw,
+            view_bbox.min_lat - bh,
+            view_bbox.max_lon + bw,
+            view_bbox.max_lat + bh,
+        );
         let tile_zoom = self.camera.tile_zoom();
 
-        info!(zoom = tile_zoom, bbox = %bbox, "Loading tiles");
-        let features = load_tiles_blocking(&self.pmtiles_path, &bbox, tile_zoom);
+        info!(zoom = tile_zoom, bbox = %load_bbox, "Loading tiles");
+        let features = load_tiles_blocking(&self.pmtiles_path, &load_bbox, tile_zoom);
         info!(features = features.len(), "Tessellating");
 
         self.labels = collect_labels(&features);
@@ -693,6 +706,8 @@ impl MapApp {
                 });
         gpu.num_indices = indices.len() as u32;
         self.current_tile_zoom = tile_zoom;
+        let aspect = gpu.config.width as f64 / gpu.config.height as f64;
+        self.loaded_bbox = self.camera.view_bbox(aspect);
         self.needs_retessellate = false;
         self.update_label_texture();
     }
@@ -1123,8 +1138,22 @@ impl ApplicationHandler for MapApp {
                 if button == MouseButton::Left {
                     let was_dragging = self.dragging;
                     self.dragging = state == ElementState::Pressed;
-                    // Re-render labels when drag ends
+                    // Reload tiles when drag ends if we've panned outside loaded area
                     if was_dragging && !self.dragging {
+                        let aspect = self.gpu.as_ref()
+                            .map(|g| g.config.width as f64 / g.config.height as f64)
+                            .unwrap_or(1.333);
+                        let view = self.camera.view_bbox(aspect);
+                        // Reload if view extends 30%+ outside loaded area
+                        let margin = self.loaded_bbox.width() * 0.3;
+                        if view.min_lon < self.loaded_bbox.min_lon - margin
+                            || view.max_lon > self.loaded_bbox.max_lon + margin
+                            || view.min_lat < self.loaded_bbox.min_lat - margin
+                            || view.max_lat > self.loaded_bbox.max_lat + margin
+                            || !self.loaded_bbox.is_valid()
+                        {
+                            self.needs_retessellate = true;
+                        }
                         self.update_label_texture();
                         if let Some(gpu) = &self.gpu {
                             gpu.window.request_redraw();
@@ -1171,12 +1200,13 @@ impl ApplicationHandler for MapApp {
                 self.camera.zoom = (self.camera.zoom * factor).clamp(0.001, 360.0);
                 self.update_projection();
 
+                // Reload tiles when zoom level changes or viewport doubles/halves
                 let new_tz = self.camera.tile_zoom();
                 if new_tz != self.current_tile_zoom {
                     self.needs_retessellate = true;
                 }
 
-                // Re-render labels at new zoom
+                // Re-render labels at new zoom (cheap — CPU only)
                 self.update_label_texture();
 
                 if let Some(gpu) = &self.gpu {
