@@ -675,7 +675,29 @@ impl MapApp {
         let tile_zoom = self.camera.tile_zoom();
 
         info!(zoom = tile_zoom, bbox = %load_bbox, "Loading tiles");
-        let features = load_tiles_blocking(&self.pmtiles_path, &load_bbox, tile_zoom);
+        let mut features = load_tiles_blocking(&self.pmtiles_path, &load_bbox, tile_zoom);
+
+        // Cap features to prevent GPU buffer overflow (268MB limit ≈ 10M vertices)
+        const MAX_FEATURES: usize = 500_000;
+        if features.len() > MAX_FEATURES {
+            // Keep the most important features: sort by layer priority
+            features.sort_by_key(|f| match f.layer.as_str() {
+                "boundary" => 0,
+                "water" => 1,
+                "natural" => 2,
+                "landuse" => 3,
+                "highway" => match f.class.as_deref().unwrap_or("") {
+                    "motorway" | "motorway_link" => 4,
+                    "trunk" | "trunk_link" => 5,
+                    "primary" | "primary_link" => 6,
+                    _ => 8,
+                },
+                "railway" => 7,
+                _ => 9,
+            });
+            features.truncate(MAX_FEATURES);
+            info!(truncated_to = MAX_FEATURES, "Feature budget applied");
+        }
         info!(features = features.len(), "Tessellating");
 
         self.labels = collect_labels(&features);
