@@ -1,5 +1,6 @@
 pub mod classify;
 pub mod feature;
+pub mod geojson;
 pub mod pipeline;
 pub mod tags;
 
