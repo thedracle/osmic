@@ -342,6 +342,28 @@ pub fn default_style_json(source_url: &str) -> Style {
                 "text-halo-width": 1.0
             }
         }),
+        // Amenity/POI labels
+        json!({
+            "id": "amenity-label",
+            "type": "symbol",
+            "source": "omm",
+            "source-layer": "amenity",
+            "minzoom": 15,
+            "filter": ["has", "name"],
+            "layout": {
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Regular"],
+                "text-size": 10,
+                "text-padding": 5,
+                "icon-allow-overlap": false,
+                "text-allow-overlap": false
+            },
+            "paint": {
+                "text-color": "#734a08",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.0
+            }
+        }),
         // Place labels
         json!({
             "id": "place-label",

@@ -162,54 +162,69 @@ impl PbfProcessor {
                     let mut local_way_count = 0u64;
                     let mut local_unresolved = 0u64;
 
-                    if let Element::Way(way) = element {
-                        local_way_count = 1;
+                    match element {
+                        Element::Way(way) => {
+                            local_way_count = 1;
 
-                        // Intern tags
-                        let mut tags = Tags::new();
-                        for (k, v) in way.tags() {
-                            tags.push(tag_store.intern_key(k), tag_store.intern_value(v));
-                        }
+                            let mut tags = Tags::new();
+                            for (k, v) in way.tags() {
+                                tags.push(
+                                    tag_store.intern_key(k),
+                                    tag_store.intern_value(v),
+                                );
+                            }
 
-                        // Classify
-                        if let Some(kind) = classify::classify(&tags, tag_store) {
-                            // Resolve node coordinates
-                            let refs: Vec<i64> = way.refs().collect();
-                            let coords: Vec<Coord<f64>> = refs
-                                .iter()
-                                .filter_map(|&id| {
-                                    node_store.get(id).map(|ll| {
-                                        local_bbox.expand(ll.lon, ll.lat);
-                                        Coord {
-                                            x: ll.lon,
-                                            y: ll.lat,
-                                        }
+                            if let Some(kind) = classify::classify(&tags, tag_store) {
+                                let refs: Vec<i64> = way.refs().collect();
+                                let coords: Vec<Coord<f64>> = refs
+                                    .iter()
+                                    .filter_map(|&id| {
+                                        node_store.get(id).map(|ll| {
+                                            local_bbox.expand(ll.lon, ll.lat);
+                                            Coord {
+                                                x: ll.lon,
+                                                y: ll.lat,
+                                            }
+                                        })
                                     })
-                                })
-                                .collect();
+                                    .collect();
 
-                            if coords.len() >= 2 {
-                                let is_closed =
-                                    refs.len() >= 4 && refs.first() == refs.last();
-                                let geometry = if is_closed && kind.is_area() {
-                                    Geometry::Polygon(Polygon::new(
-                                        LineString::new(coords),
-                                        vec![],
-                                    ))
-                                } else {
-                                    Geometry::Line(LineString::new(coords))
-                                };
+                                if coords.len() >= 2 {
+                                    let is_closed =
+                                        refs.len() >= 4 && refs.first() == refs.last();
+                                    let geometry = if is_closed && kind.is_area() {
+                                        Geometry::Polygon(Polygon::new(
+                                            LineString::new(coords),
+                                            vec![],
+                                        ))
+                                    } else {
+                                        Geometry::Line(LineString::new(coords))
+                                    };
 
-                                local_features.push(Feature {
-                                    id: way.id(),
-                                    kind,
-                                    geometry,
-                                    tags,
-                                });
-                            } else if !refs.is_empty() {
-                                local_unresolved += 1;
+                                    local_features.push(Feature {
+                                        id: way.id(),
+                                        kind,
+                                        geometry,
+                                        tags,
+                                    });
+                                } else if !refs.is_empty() {
+                                    local_unresolved += 1;
+                                }
                             }
                         }
+                        Element::Node(node) => {
+                            process_poi_node(
+                                node.id(), node.lon(), node.lat(), node.tags(),
+                                tag_store, &mut local_features, &mut local_bbox,
+                            );
+                        }
+                        Element::DenseNode(node) => {
+                            process_poi_node(
+                                node.id(), node.lon(), node.lat(), node.tags(),
+                                tag_store, &mut local_features, &mut local_bbox,
+                            );
+                        }
+                        _ => {}
                     }
 
                     (local_features, local_way_count, local_bbox, local_unresolved)
@@ -233,6 +248,36 @@ impl PbfProcessor {
         Ok((features, way_count, bbox))
     }
 
+}
+
+/// Extract a tagged node as a POI point feature if it classifies.
+fn process_poi_node<'a>(
+    id: i64,
+    lon: f64,
+    lat: f64,
+    tags_iter: impl Iterator<Item = (&'a str, &'a str)>,
+    tag_store: &TagStore,
+    features: &mut Vec<Feature>,
+    bbox: &mut BBox,
+) {
+    let mut tags = Tags::new();
+    let mut has_tags = false;
+    for (k, v) in tags_iter {
+        has_tags = true;
+        tags.push(tag_store.intern_key(k), tag_store.intern_value(v));
+    }
+    if !has_tags {
+        return;
+    }
+    if let Some(kind) = classify::classify(&tags, tag_store) {
+        bbox.expand(lon, lat);
+        features.push(Feature {
+            id,
+            kind,
+            geometry: Geometry::Point(geo_types::Point::new(lon, lat)),
+            tags,
+        });
+    }
 }
 
 struct RelationInfo {

@@ -392,6 +392,7 @@ fn collect_labels(features: &[DecodedFeature]) -> Vec<MapLabel> {
                 _ => (10.0, [0x66, 0x66, 0x66, 0xFF], 2.0),
             },
             "leisure" => (10.0, [0x3a, 0x7a, 0x3a, 0xFF], 1.0),
+            "amenity" => (9.0, [0x73, 0x4a, 0x08, 0xFF], 0.05),
             _ => continue,
         };
 
