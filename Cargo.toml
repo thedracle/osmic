@@ -1,0 +1,87 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/omm-core",
+    "crates/omm-osm",
+    "crates/omm-geo",
+    "crates/omm-index",
+    "crates/omm-style",
+    "crates/omm-tiles",
+    "crates/omm-render",
+    "crates/omm-text",
+    "crates/omm-app",
+    "crates/omm-serve",
+    "crates/omm",
+    "bins/omm-cli",
+    "bins/omm-viewer",
+    "examples/load-pbf",
+    "examples/render-static",
+    "examples/tile-server",
+    "examples/custom-plugin",
+]
+
+[workspace.dependencies]
+# Internal crates
+omm-core = { path = "crates/omm-core" }
+omm-osm = { path = "crates/omm-osm" }
+omm-geo = { path = "crates/omm-geo" }
+omm-index = { path = "crates/omm-index" }
+omm-style = { path = "crates/omm-style" }
+omm-tiles = { path = "crates/omm-tiles" }
+omm-render = { path = "crates/omm-render" }
+omm-text = { path = "crates/omm-text" }
+omm-app = { path = "crates/omm-app" }
+omm-serve = { path = "crates/omm-serve" }
+
+# Parsing & data
+osmpbf = "0.3"
+rayon = "1.11"
+memmap2 = "0.9"
+lasso = { version = "0.7", features = ["multi-threaded"] }
+
+# Geometry
+geo-types = { version = "0.7", features = ["serde"] }
+geo = "0.32"
+rstar = "0.12"
+proj4rs = "0.1"
+
+# Tile & format
+geozero = "0.15"
+mvt = "0.12"
+pmtiles = "0.21"
+
+# Rendering
+wgpu = "28"
+lyon = "1.0"
+tiny-skia = "0.12"
+cosmic-text = "0.18"
+winit = "0.30"
+pollster = "0.4"
+bytemuck = { version = "1", features = ["derive"] }
+
+# Server
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["compression-gzip", "cors", "set-header"] }
+bytes = "1"
+tokio = { version = "1", features = ["full"] }
+
+# Utility
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+smallvec = { version = "1.15", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

@@ -1,0 +1,15 @@
+[package]
+name = "omm-osm"
+version = "0.1.0"
+edition = "2021"
+description = "OSM data model, PBF parsing, tag system, and classification"
+
+[dependencies]
+omm-core = { workspace = true }
+osmpbf = { workspace = true }
+rayon = { workspace = true }
+lasso = { workspace = true }
+geo-types = { workspace = true }
+smallvec = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }

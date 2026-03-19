@@ -1,0 +1,14 @@
+[package]
+name = "omm-render"
+version = "0.1.0"
+edition = "2021"
+description = "Backend abstraction, scene graph, tessellation"
+
+[dependencies]
+omm-core = { workspace = true }
+omm-osm = { workspace = true }
+omm-style = { workspace = true }
+tiny-skia = { workspace = true }
+cosmic-text = { workspace = true }
+geo-types = { workspace = true }
+tracing = { workspace = true }

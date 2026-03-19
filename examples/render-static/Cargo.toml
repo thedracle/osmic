@@ -1,0 +1,19 @@
+[package]
+name = "render-static"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+omm-core = { workspace = true }
+omm-osm = { workspace = true }
+omm-index = { workspace = true }
+omm-render = { workspace = true }
+omm-tiles = { workspace = true }
+omm-geo = { workspace = true }
+pmtiles = { workspace = true, features = ["mmap-async-tokio"] }
+tokio = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

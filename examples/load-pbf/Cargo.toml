@@ -1,0 +1,13 @@
+[package]
+name = "load-pbf"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+omm-core = { workspace = true }
+omm-osm = { workspace = true }
+omm-index = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

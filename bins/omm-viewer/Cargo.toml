@@ -1,0 +1,22 @@
+[package]
+name = "omm-viewer"
+version = "0.1.0"
+edition = "2021"
+description = "Interactive wgpu windowed map viewer"
+
+[dependencies]
+omm-core = { workspace = true }
+omm-tiles = { workspace = true }
+omm-geo = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+lyon = { workspace = true }
+pollster = { workspace = true }
+bytemuck = { workspace = true }
+cosmic-text = { workspace = true }
+pmtiles = { workspace = true, features = ["mmap-async-tokio"] }
+tokio = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
