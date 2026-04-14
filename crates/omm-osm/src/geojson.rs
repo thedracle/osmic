@@ -89,7 +89,7 @@ pub fn load_geojson(path: &Path) -> OmmResult<crate::pipeline::ProcessedData> {
         };
 
         // Classify
-        let kind = classify::classify(&tags, &tag_store)
+        let kind = classify::classify(&tags, &tag_store, &crate::layers::LayerSet::all())
             .unwrap_or(FeatureKind::Natural(crate::feature::NaturalKind::Other));
 
         features.push(Feature {

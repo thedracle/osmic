@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use omm_core::error::{OmmError, OmmResult};
 use omm_core::LonLat;
-use omm_index::DenseNodeLocationStore;
+use omm_index::RamNodeLocationStore;
 use omm_osm::pipeline::NodeLocationStore;
 use osmpbf::{Element, ElementReader};
 use tracing::info;
@@ -85,9 +85,12 @@ impl Extractor {
             )));
         }
 
-        // Create node location store
-        let node_store =
-            DenseNodeLocationStore::create(&self.config.node_store_path, self.config.max_node_id)?;
+        // RAM-backed node store — no file backing, relies on OS 4KB-page
+        // sparsity for FlexMem-style memory behavior. The legacy
+        // `node_store_path` field in the config is now unused but kept
+        // for API stability.
+        let _ = &self.config.node_store_path;
+        let node_store = RamNodeLocationStore::create(self.config.max_node_id)?;
 
         // Pass 1: Read node locations
         info!("Pass 1: Reading node locations...");
@@ -115,12 +118,7 @@ impl Extractor {
         );
 
         let total_duration = total_start.elapsed();
-
-        // Cleanup node store temp file
-        if self.config.node_store_path.starts_with("/tmp") {
-            drop(node_store);
-            let _ = std::fs::remove_file(&self.config.node_store_path);
-        }
+        drop(node_store);
 
         Ok(ExtractResult {
             entities,
@@ -140,7 +138,7 @@ impl Extractor {
     fn pass1_nodes(
         &self,
         pbf_path: &Path,
-        node_store: &DenseNodeLocationStore,
+        node_store: &RamNodeLocationStore,
     ) -> OmmResult<u64> {
         let reader =
             ElementReader::from_path(pbf_path).map_err(|e| OmmError::Pbf(e.to_string()))?;
@@ -168,7 +166,7 @@ impl Extractor {
     fn pass2_extract(
         &self,
         pbf_path: &Path,
-        node_store: &DenseNodeLocationStore,
+        node_store: &RamNodeLocationStore,
     ) -> OmmResult<(Vec<Entity>, u64, u64)> {
         let reader =
             ElementReader::from_path(pbf_path).map_err(|e| OmmError::Pbf(e.to_string()))?;
@@ -305,10 +303,16 @@ where
     let (osm_type, osm_id, lon, lat) = coords_fn();
 
     // Apply bbox filter if set
-    if let (Some(bbox), Some(lon), Some(lat)) = (bbox, lon, lat) {
-        let (min_lon, min_lat, max_lon, max_lat) = bbox;
-        if lon < min_lon || lon > max_lon || lat < min_lat || lat > max_lat {
-            return None;
+    if let Some(bbox) = bbox {
+        match (lon, lat) {
+            (Some(lon), Some(lat)) => {
+                let (min_lon, min_lat, max_lon, max_lat) = bbox;
+                if lon < min_lon || lon > max_lon || lat < min_lat || lat > max_lat {
+                    return None;
+                }
+            }
+            // No coordinates and bbox is set — exclude (can't verify location)
+            _ => return None,
         }
     }
 

@@ -83,6 +83,25 @@ impl TagFilter {
         }
     }
 
+    /// Zero-allocation variant that matches against borrowed tag slices.
+    ///
+    /// Use this in hot paths where tag keys/values are already available
+    /// as `&str` (e.g. resolved from a string-interning store). Equivalent
+    /// to [`Self::matches`] but avoids cloning into owned `String`s.
+    pub fn matches_str(&self, tags: &[(&str, &str)]) -> bool {
+        match self {
+            TagFilter::Tag { key, value } => {
+                tags.iter().any(|(k, v)| *k == key.as_str() && *v == value.as_str())
+            }
+            TagFilter::KeyExists { key } => {
+                tags.iter().any(|(k, _)| *k == key.as_str())
+            }
+            TagFilter::All(filters) => filters.iter().all(|f| f.matches_str(tags)),
+            TagFilter::Any(filters) => filters.iter().any(|f| f.matches_str(tags)),
+            TagFilter::Not(filter) => !filter.matches_str(tags),
+        }
+    }
+
     /// Parse an OSM-style tag filter string like "office=property_management".
     ///
     /// Supports:
@@ -184,5 +203,49 @@ mod tests {
         let filter = TagFilter::parse("name=*");
         assert!(filter.matches(&tags(&[("name", "Acme")])));
         assert!(!filter.matches(&tags(&[("office", "company")])));
+    }
+
+    // --- matches_str (zero-alloc variant) ---
+
+    #[test]
+    fn matches_str_exact() {
+        let filter = TagFilter::tag("shop", "tyres");
+        assert!(filter.matches_str(&[("shop", "tyres"), ("name", "Bob's")]));
+        assert!(!filter.matches_str(&[("shop", "car_repair")]));
+    }
+
+    #[test]
+    fn matches_str_key_exists() {
+        let filter = TagFilter::key_exists("shop");
+        assert!(filter.matches_str(&[("shop", "tyres")]));
+        assert!(filter.matches_str(&[("shop", "anything_at_all")]));
+        assert!(!filter.matches_str(&[("amenity", "restaurant")]));
+    }
+
+    #[test]
+    fn matches_str_any_or() {
+        let filter = TagFilter::parse("shop=* office=* craft=*");
+        assert!(filter.matches_str(&[("shop", "tyres")]));
+        assert!(filter.matches_str(&[("office", "it")]));
+        assert!(filter.matches_str(&[("craft", "carpenter")]));
+        assert!(!filter.matches_str(&[("natural", "tree")]));
+    }
+
+    #[test]
+    fn matches_str_include_and_exclude_composition() {
+        // Include "shop=*" AND NOT "brand=McDonalds"
+        let include = TagFilter::parse("shop=*");
+        let exclude = TagFilter::parse("brand=McDonalds");
+        let filter = TagFilter::all(vec![include, TagFilter::not(exclude)]);
+
+        assert!(filter.matches_str(&[("shop", "tyres"), ("name", "Local Tires")]));
+        assert!(!filter.matches_str(&[("shop", "fast_food"), ("brand", "McDonalds")]));
+        assert!(!filter.matches_str(&[("amenity", "bank")])); // no shop tag
+    }
+
+    #[test]
+    fn matches_str_empty_tags() {
+        let filter = TagFilter::key_exists("name");
+        assert!(!filter.matches_str(&[]));
     }
 }

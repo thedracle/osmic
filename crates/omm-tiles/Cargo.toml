@@ -2,18 +2,28 @@
 name = "omm-tiles"
 version = "0.1.0"
 edition = "2021"
-description = "MVT encoding, PMTiles/MBTiles archives, tile math"
+description = "MVT/MLT encoding, PMTiles archives, tile math"
+
+[features]
+default = ["native"]
+native = ["dep:rayon", "dep:pmtiles", "omm-osm/native"]
+mlt = ["dep:mlt-core"]
 
 [dependencies]
 omm-core = { workspace = true }
 omm-geo = { workspace = true }
 omm-index = { workspace = true }
-omm-osm = { workspace = true }
+omm-osm = { workspace = true, default-features = false }
 geo-types = { workspace = true }
 mvt = { workspace = true }
-pmtiles = { workspace = true, features = ["write"] }
-rayon = { workspace = true }
+pmtiles = { workspace = true, features = ["write"], optional = true }
+rayon = { workspace = true, optional = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+geo = { workspace = true }
+mlt-core = { version = "0.6", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+omm-accel = { path = "../omm-accel" }

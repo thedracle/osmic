@@ -90,13 +90,19 @@ fn dedup_group(group: Vec<Entity>, radius_meters: f64) -> Vec<Entity> {
 fn find_merge_target(kept: &[Entity], candidate: &Entity, radius_meters: f64) -> Option<usize> {
     for (i, existing) in kept.iter().enumerate() {
         match (existing.lat, existing.lon, candidate.lat, candidate.lon) {
+            // Both have coordinates — merge only if within radius
             (Some(elat), Some(elon), Some(clat), Some(clon)) => {
                 if haversine_meters(elat, elon, clat, clon) < radius_meters {
                     return Some(i);
                 }
             }
-            // Either lacks coordinates — collapse same-name
-            _ => return Some(i),
+            // Both lack coordinates — collapse same-name
+            (None, _, None, _) | (_, None, _, None) if existing.lat.is_none() && candidate.lat.is_none() => {
+                return Some(i);
+            }
+            // Mixed (one has coords, one doesn't) — don't merge,
+            // they could be in different cities
+            _ => {}
         }
     }
     None
@@ -150,6 +156,18 @@ mod tests {
         ];
         let result = deduplicate(entities, 100.0);
         assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_dedup_mixed_coords_not_collapsed() {
+        // Entity with coords should NOT be collapsed with same-named entity without coords
+        // (they could be in different cities)
+        let entities = vec![
+            entity("Acme Corp", Some(25.7), Some(-80.2), "555-1111"),
+            entity("Acme Corp", None, None, "555-2222"),
+        ];
+        let result = deduplicate(entities, 100.0);
+        assert_eq!(result.len(), 2);
     }
 
     #[test]

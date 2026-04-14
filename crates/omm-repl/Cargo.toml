@@ -1,0 +1,21 @@
+[package]
+name = "omm-repl"
+version = "0.1.0"
+edition = "2021"
+description = "OSM replication: change file parsing, feature store, incremental tile updates"
+
+[dependencies]
+omm-core = { workspace = true }
+omm-osm = { workspace = true }
+omm-index = { workspace = true }
+omm-tiles = { workspace = true }
+omm-geo = { workspace = true }
+geo-types = { workspace = true }
+quick-xml = "0.39"
+flate2 = "1"
+redb = "2"
+reqwest = { version = "0.12", features = ["blocking"] }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

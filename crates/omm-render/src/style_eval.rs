@@ -116,6 +116,15 @@ pub fn z_order(kind: &FeatureKind) -> i32 {
         FeatureKind::Water(_) => 80,
         FeatureKind::Highway(_) => 100,
         FeatureKind::Amenity(_) => 110,
+        FeatureKind::Shop(_) => 115,
+        FeatureKind::Tourism(_) => 120,
+        FeatureKind::Office(_) => 125,
+        FeatureKind::Healthcare(_) => 130,
+        FeatureKind::Craft(_) => 135,
+        FeatureKind::Historic(_) => 140,
+        FeatureKind::Club(_) => 115,
+        FeatureKind::Emergency(_) => 112,
+        FeatureKind::Education(_) => 113,
         FeatureKind::Place(_) => 200,
     }
 }

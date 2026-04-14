@@ -12,19 +12,20 @@ members = [
     "crates/omm-app",
     "crates/omm-serve",
     "crates/omm-extract",
+    "crates/omm-accel",
     "crates/omm",
     "bins/omm-cli",
     "bins/omm-viewer",
     "examples/load-pbf",
     "examples/render-static",
     "examples/tile-server",
-    "examples/custom-plugin",
+    "examples/custom-plugin", "crates/omm-repl",
 ]
 
 [workspace.dependencies]
 # Internal crates
 omm-core = { path = "crates/omm-core" }
-omm-osm = { path = "crates/omm-osm" }
+omm-osm = { path = "crates/omm-osm", default-features = false }
 omm-geo = { path = "crates/omm-geo" }
 omm-index = { path = "crates/omm-index" }
 omm-style = { path = "crates/omm-style" }

@@ -2,12 +2,14 @@ use geo_types::{Coord, LineString, Polygon};
 
 use omm_core::geometry::Geometry;
 
-/// A decoded MVT feature with layer name, class, name, and geometry.
+/// A decoded MVT feature with layer name, class, name, extra tags, and geometry.
 #[derive(Debug)]
 pub struct DecodedFeature {
     pub layer: String,
     pub class: Option<String>,
     pub name: Option<String>,
+    /// Additional tags (address, phone, website, etc.)
+    pub tags: Vec<(String, String)>,
     pub geometry: Geometry,
 }
 
@@ -176,18 +178,19 @@ fn decode_feature(
         }
     }
 
-    // Extract class and name from tags
+    // Extract class, name, and extra tags
     let mut class = None;
     let mut feat_name = None;
+    let mut extra_tags = Vec::new();
     let mut i = 0;
     while i + 1 < tag_indices.len() {
         let ki = tag_indices[i] as usize;
         let vi = tag_indices[i + 1] as usize;
         if ki < keys.len() && vi < values.len() {
-            if keys[ki] == "class" {
-                class = Some(values[vi].clone());
-            } else if keys[ki] == "name" {
-                feat_name = Some(values[vi].clone());
+            match keys[ki].as_str() {
+                "class" => class = Some(values[vi].clone()),
+                "name" => feat_name = Some(values[vi].clone()),
+                _ => extra_tags.push((keys[ki].clone(), values[vi].clone())),
             }
         }
         i += 2;
@@ -259,6 +262,7 @@ fn decode_feature(
         layer: layer_name.to_string(),
         class,
         name: feat_name,
+        tags: extra_tags,
         geometry,
     })
 }

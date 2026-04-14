@@ -1,3 +1,6 @@
+//! PMTiles archive writer — native only (requires pmtiles with file I/O).
+#![cfg(feature = "native")]
+
 use std::fs::File;
 use std::io;
 use std::path::Path;
@@ -21,6 +24,7 @@ impl PmTilesArchive {
         bbox: &BBox,
         min_zoom: u8,
         max_zoom: u8,
+        tile_type: TileType,
     ) -> OmmResult<Self> {
         info!(path = %path.display(), "Creating PMTiles archive");
 
@@ -29,7 +33,7 @@ impl PmTilesArchive {
 
         let metadata = build_metadata(min_zoom, max_zoom);
 
-        let writer = PmTilesWriter::new(TileType::Mvt)
+        let writer = PmTilesWriter::new(tile_type)
             .tile_compression(Compression::Gzip)
             .internal_compression(Compression::Gzip)
             .min_zoom(min_zoom)
@@ -75,37 +79,92 @@ impl From<PmTilesArchive> for io::Result<()> {
 }
 
 /// Build TileJSON-compatible metadata for the PMTiles archive.
+///
+/// The `vector_layers` array is consumed by downstream tile servers like
+/// [Martin](https://github.com/maplibre/martin) to advertise which layers
+/// and attributes are available. We emit the full 19-layer inventory so
+/// clients can introspect the schema via Martin's `/catalog` endpoint
+/// even if the current tile gen run was filtered to a subset.
+///
+/// The per-layer `minzoom` values mirror `omm_osm::feature::min_tile_zoom`.
+/// The `fields` dictionary includes every key the MVT encoder knows about
+/// (both the curated whitelist and the common tags exposed in `--all-tags`
+/// mode). Martin does not require every field to actually appear on every
+/// feature — it uses the schema as a hint for clients.
 fn build_metadata(_min_zoom: u8, max_zoom: u8) -> String {
-    let layers: Vec<serde_json::Value> = [
-        ("highway", "Road network", 4),
-        ("building", "Buildings", 13),
-        ("water", "Water features", 0),
-        ("landuse", "Land use areas", 7),
-        ("natural", "Natural features", 0),
-        ("railway", "Railway lines", 8),
-        ("amenity", "Amenity points and areas", 13),
-        ("leisure", "Leisure areas", 8),
-        ("boundary", "Administrative boundaries", 2),
-        ("place", "Place labels", 4),
-    ]
-    .iter()
-    .map(|(id, desc, layer_min)| {
-        serde_json::json!({
-            "id": id,
-            "description": desc,
-            "fields": { "class": "String", "name": "String" },
-            "minzoom": layer_min,
-            "maxzoom": max_zoom
+    // (id, human description, per-layer minzoom). minzooms mirror
+    // `FeatureKind::min_tile_zoom` in `omm-osm/src/feature.rs`.
+    const LAYER_SPEC: &[(&str, &str, u8)] = &[
+        ("highway",     "Road network",              4),
+        ("building",    "Buildings",                 13),
+        ("water",       "Water features",            0),
+        ("landuse",     "Land use areas",            7),
+        ("natural",     "Natural features",          0),
+        ("railway",     "Railway lines",             8),
+        ("amenity",     "Amenity points and areas",  13),
+        ("leisure",     "Leisure areas",             8),
+        ("boundary",    "Administrative boundaries", 2),
+        ("place",       "Place labels",              4),
+        ("shop",        "Retail points",             14),
+        ("tourism",     "Tourism points",            13),
+        ("office",      "Office points",             14),
+        ("healthcare",  "Healthcare points",         14),
+        ("craft",       "Craft / trade points",      14),
+        ("historic",    "Historic points",           13),
+        ("club",        "Club points",               14),
+        ("emergency",   "Emergency services",        13),
+        ("education",   "Education points",          13),
+    ];
+
+    // Every tag key the MVT encoder can emit — the curated whitelist
+    // plus the pass-through keys most commonly present on POI features.
+    // Martin clients use this to populate schema introspection UIs.
+    let fields = serde_json::json!({
+        "class":            "String",
+        "name":             "String",
+        "addr:street":      "String",
+        "addr:housenumber": "String",
+        "addr:city":        "String",
+        "addr:postcode":    "String",
+        "phone":            "String",
+        "contact:phone":    "String",
+        "website":          "String",
+        "contact:website":  "String",
+        "opening_hours":    "String",
+        "cuisine":          "String",
+        "brand":            "String",
+        "operator":         "String",
+        "description":      "String",
+        "shop":             "String",
+        "amenity":          "String",
+        "tourism":          "String",
+        "office":           "String",
+        "craft":            "String",
+        "healthcare":       "String",
+        "historic":         "String",
+    });
+
+    let layers: Vec<serde_json::Value> = LAYER_SPEC
+        .iter()
+        .map(|(id, desc, layer_min)| {
+            serde_json::json!({
+                "id": id,
+                "description": desc,
+                "fields": fields,
+                "minzoom": layer_min,
+                "maxzoom": max_zoom,
+            })
         })
-    })
-    .collect();
+        .collect();
 
     serde_json::json!({
         "vector_layers": layers,
         "name": "OpenMapMarketor",
         "description": "Generated by OpenMapMarketor",
         "attribution": "OpenStreetMap contributors",
-        "type": "baselayer"
+        "type": "baselayer",
+        "format": "pbf",
+        "version": "2",
     })
     .to_string()
 }

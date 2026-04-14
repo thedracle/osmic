@@ -1,9 +1,13 @@
+//! PBF parsing pipeline — native only (requires osmpbf + rayon).
+#![cfg(feature = "native")]
+
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use geo_types::{Coord, LineString, MultiPolygon, Polygon};
+/// Query available system memory in bytes.
+use geo_types::{Coord, LineString, Polygon};
 use osmpbf::{Element, ElementReader, RelMemberType};
 use tracing::info;
 
@@ -13,6 +17,7 @@ use omm_core::geometry::Geometry;
 
 use crate::classify;
 use crate::feature::Feature;
+use crate::layers::LayerSet;
 use crate::tags::{TagStore, Tags};
 
 /// Statistics from PBF processing.
@@ -58,15 +63,36 @@ impl PbfProcessor {
     }
 
     /// Process a PBF file using the provided node location store.
+    /// `layers` controls which feature categories to extract.
+    ///
+    /// This method streams blobs directly from disk via
+    /// [`osmpbf::ElementReader::from_path`] and runs the decode pipeline
+    /// in parallel via rayon. Memory usage is bounded by the decoded
+    /// feature set and the way-geometry cache used for multipolygon
+    /// assembly — NOT by the PBF file size. Works at any scale from a
+    /// small city extract to the full planet file without branching.
     pub fn process(
         &self,
         pbf_path: &Path,
         node_store: &dyn NodeLocationStore,
+        layers: &LayerSet,
     ) -> OmmResult<ProcessedData> {
         let total_start = Instant::now();
 
-        // Pass 1: Node locations
-        info!("Pass 1: Reading node locations...");
+        // Pre-compute a feature-count estimate from the PBF size and allocate
+        // a bump arena for pipeline scratch space. The capacity hint is used
+        // to pre-size the final feature Vec, avoiding ~26 reallocations for
+        // planet-scale runs.
+        let pbf_size = std::fs::metadata(pbf_path).map(|m| m.len()).unwrap_or(0);
+        let arena = crate::arena::ProcessedArena::for_pbf_size(pbf_size);
+        info!(
+            pbf_mb = pbf_size / (1024 * 1024),
+            estimated_features = arena.feature_capacity_hint(),
+            "Sized feature arena from PBF metadata"
+        );
+
+        // Pass 1: Node locations. Streams blobs directly from disk.
+        info!("Pass 1: Reading node locations from {}", pbf_path.display());
         let pass1_start = Instant::now();
         let node_count = self.pass1_nodes(pbf_path, node_store)?;
         let pass1_duration = pass1_start.elapsed();
@@ -74,34 +100,31 @@ impl PbfProcessor {
             "Pass 1 complete: {} nodes in {:.2}s ({:.0} nodes/s)",
             node_count,
             pass1_duration.as_secs_f64(),
-            node_count as f64 / pass1_duration.as_secs_f64()
+            node_count as f64 / pass1_duration.as_secs_f64().max(1e-9)
         );
 
-        // Pass 2: Ways → Features
-        info!("Pass 2: Processing ways...");
+        // Pass 2: Ways + POI nodes + Relations in ONE decompression pass.
+        // Way coords are cached in RAM for multipolygon assembly.
+        info!("Pass 2: Processing ways, POI nodes, and relations (single streaming pass)...");
         let pass2_start = Instant::now();
-        let (mut features, way_count, mut bbox) = self.pass2_ways(pbf_path, node_store)?;
+        let (raw_features, way_count, relation_count, bbox) =
+            self.pass2_all(pbf_path, node_store, layers)?;
         let pass2_duration = pass2_start.elapsed();
         info!(
-            "Pass 2 complete: {} ways → {} features in {:.2}s",
+            "Pass 2 complete: {} ways + {} relations → {} features in {:.2}s",
             way_count,
-            features.len(),
+            relation_count,
+            raw_features.len(),
             pass2_duration.as_secs_f64()
         );
 
-        // Pass 3: Multipolygon relation assembly
-        info!("Pass 3: Assembling multipolygon relations...");
-        let pass3_start = Instant::now();
-        let (mp_features, relation_count) =
-            self.pass3_relations(pbf_path, node_store, &mut bbox)?;
-        let mp_count = mp_features.len();
-        features.extend(mp_features);
-        info!(
-            "Pass 3 complete: {} relations → {} multipolygons in {:.2}s",
-            relation_count,
-            mp_count,
-            pass3_start.elapsed().as_secs_f64()
-        );
+        // Copy into the pre-sized feature vector to release any over-
+        // allocated capacity from rayon's reduce-phase doubling growth.
+        // This also gives a predictable memory layout for downstream
+        // consumers that iterate features in a tight loop (tile gen).
+        let mut features = arena.new_feature_vec();
+        features.extend(raw_features);
+        features.shrink_to_fit();
 
         let total_duration = total_start.elapsed();
         let feature_count = features.len() as u64;
@@ -122,9 +145,17 @@ impl PbfProcessor {
         })
     }
 
-    /// Pass 1: Read all nodes and store their locations.
-    fn pass1_nodes(&self, path: &Path, node_store: &dyn NodeLocationStore) -> OmmResult<u64> {
-        let reader = ElementReader::from_path(path).map_err(|e| OmmError::Pbf(e.to_string()))?;
+    /// Pass 1: Stream nodes from disk and store their locations.
+    ///
+    /// Uses [`ElementReader::from_path`] which internally streams blobs
+    /// via [`osmpbf::BlobReader`] — no in-memory PBF buffer required.
+    fn pass1_nodes(
+        &self,
+        pbf_path: &Path,
+        node_store: &dyn NodeLocationStore,
+    ) -> OmmResult<u64> {
+        let reader =
+            ElementReader::from_path(pbf_path).map_err(|e| OmmError::Pbf(e.to_string()))?;
 
         reader
             .par_map_reduce(
@@ -145,19 +176,28 @@ impl PbfProcessor {
             .map_err(|e| OmmError::Pbf(e.to_string()))
     }
 
-    /// Pass 2: Process ways into classified features.
-    fn pass2_ways(
+    /// Pass 2: Stream ways + POI nodes + relations in a single disk pass.
+    ///
+    /// Way coordinates are cached in memory for multipolygon assembly
+    /// (the cache is bounded by the number of ways referenced by relations,
+    /// not by the PBF size).
+    fn pass2_all(
         &self,
-        path: &Path,
+        pbf_path: &Path,
         node_store: &dyn NodeLocationStore,
-    ) -> OmmResult<(Vec<Feature>, u64, BBox)> {
-        let reader = ElementReader::from_path(path).map_err(|e| OmmError::Pbf(e.to_string()))?;
+        layers: &LayerSet,
+    ) -> OmmResult<(Vec<Feature>, u64, u64, BBox)> {
+        let reader =
+            ElementReader::from_path(pbf_path).map_err(|e| OmmError::Pbf(e.to_string()))?;
         let tag_store = &self.tag_store;
 
-        let (features, way_count, bbox, unresolved) = reader
+        // Single parallel pass: features + cached way coords + relation info
+        let (features, way_geoms, relations, way_count, bbox, unresolved) = reader
             .par_map_reduce(
                 |element| {
                     let mut local_features: Vec<Feature> = Vec::new();
+                    let mut local_way_geoms: Vec<(i64, Vec<Coord<f64>>)> = Vec::new();
+                    let mut local_relations: Vec<RelationInfo> = Vec::new();
                     let mut local_bbox = BBox::empty();
                     let mut local_way_count = 0u64;
                     let mut local_unresolved = 0u64;
@@ -174,25 +214,31 @@ impl PbfProcessor {
                                 );
                             }
 
-                            if let Some(kind) = classify::classify(&tags, tag_store) {
-                                let refs: Vec<i64> = way.refs().collect();
-                                let coords: Vec<Coord<f64>> = refs
-                                    .iter()
-                                    .filter_map(|&id| {
-                                        node_store.get(id).map(|ll| {
-                                            local_bbox.expand(ll.lon, ll.lat);
-                                            Coord {
-                                                x: ll.lon,
-                                                y: ll.lat,
-                                            }
-                                        })
+                            // Resolve way coordinates
+                            let refs: Vec<i64> = way.refs().collect();
+                            let coords: Vec<Coord<f64>> = refs
+                                .iter()
+                                .filter_map(|&id| {
+                                    node_store.get(id).map(|ll| Coord {
+                                        x: ll.lon,
+                                        y: ll.lat,
                                     })
-                                    .collect();
+                                })
+                                .collect();
 
+                            // Cache ALL way geometries for relation assembly
+                            if coords.len() >= 2 {
+                                local_way_geoms.push((way.id(), coords.clone()));
+                            }
+
+                            if let Some(kind) = classify::classify(&tags, tag_store, layers) {
                                 if coords.len() >= 2 {
+                                    for c in &coords {
+                                        local_bbox.expand(c.x, c.y);
+                                    }
                                     let is_closed =
                                         refs.len() >= 4 && refs.first() == refs.last();
-                                    let geometry = if is_closed && kind.is_area() {
+                                    let mut geometry = if is_closed && kind.is_area() {
                                         Geometry::Polygon(Polygon::new(
                                             LineString::new(coords),
                                             vec![],
@@ -200,6 +246,7 @@ impl PbfProcessor {
                                     } else {
                                         Geometry::Line(LineString::new(coords))
                                     };
+                                    omm_geo::orient::orient_geometry(&mut geometry);
 
                                     local_features.push(Feature {
                                         id: way.id(),
@@ -215,39 +262,133 @@ impl PbfProcessor {
                         Element::Node(node) => {
                             process_poi_node(
                                 node.id(), node.lon(), node.lat(), node.tags(),
-                                tag_store, &mut local_features, &mut local_bbox,
+                                tag_store, layers, &mut local_features, &mut local_bbox,
                             );
                         }
                         Element::DenseNode(node) => {
                             process_poi_node(
                                 node.id(), node.lon(), node.lat(), node.tags(),
-                                tag_store, &mut local_features, &mut local_bbox,
+                                tag_store, layers, &mut local_features, &mut local_bbox,
                             );
                         }
-                        _ => {}
+                        Element::Relation(rel) => {
+                            let mut is_mp = false;
+                            let mut tags = Tags::new();
+                            for (k, v) in rel.tags() {
+                                if k == "type" && v == "multipolygon" {
+                                    is_mp = true;
+                                }
+                                tags.push(tag_store.intern_key(k), tag_store.intern_value(v));
+                            }
+                            if is_mp {
+                                let mut outers = Vec::new();
+                                let mut inners = Vec::new();
+                                for member in rel.members() {
+                                    if member.member_type == RelMemberType::Way {
+                                        match member.role().unwrap_or("") {
+                                            "outer" | "" => outers.push(member.member_id),
+                                            "inner" => inners.push(member.member_id),
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                                if !outers.is_empty() {
+                                    local_relations.push(RelationInfo {
+                                        id: rel.id(),
+                                        tags,
+                                        outer_way_ids: outers,
+                                        inner_way_ids: inners,
+                                    });
+                                }
+                            }
+                        }
                     }
 
-                    (local_features, local_way_count, local_bbox, local_unresolved)
+                    (local_features, local_way_geoms, local_relations,
+                     local_way_count, local_bbox, local_unresolved)
                 },
-                || (Vec::new(), 0u64, BBox::empty(), 0u64),
-                |(mut fa, ca, mut ba, ua), (fb, cb, bb, ub)| {
+                || (Vec::new(), Vec::new(), Vec::new(), 0u64, BBox::empty(), 0u64),
+                |(mut fa, mut ga, mut ra, ca, mut ba, ua),
+                 (fb, gb, rb, cb, bb, ub)| {
                     fa.extend(fb);
+                    ga.extend(gb);
+                    ra.extend(rb);
                     ba.extend(&bb);
-                    (fa, ca + cb, ba, ua + ub)
+                    (fa, ga, ra, ca + cb, ba, ua + ub)
                 },
             )
             .map_err(|e| OmmError::Pbf(e.to_string()))?;
 
         if unresolved > 0 {
-            info!(
-                unresolved,
-                "Ways skipped (nodes outside extract or exceeding max_node_id)"
-            );
+            info!(unresolved, "Ways skipped (nodes outside extract or exceeding max_node_id)");
         }
 
-        Ok((features, way_count, bbox))
-    }
+        let mut features = features;
+        let mut bbox = bbox;
+        let relation_count = relations.len() as u64;
 
+        // Assemble multipolygon relations from cached way geometries
+        if !relations.is_empty() {
+            info!(
+                relations = relation_count,
+                cached_ways = way_geoms.len(),
+                "Assembling multipolygon relations from cached way coords"
+            );
+
+            // Build lookup from cached way coords
+            let needed_ways: HashSet<i64> = relations
+                .iter()
+                .flat_map(|r| r.outer_way_ids.iter().chain(r.inner_way_ids.iter()))
+                .copied()
+                .collect();
+
+            let way_geom_map: HashMap<i64, Vec<Coord<f64>>> = way_geoms
+                .into_iter()
+                .filter(|(id, _)| needed_ways.contains(id))
+                .collect();
+
+            info!(resolved = way_geom_map.len(), needed = needed_ways.len(), "Member ways resolved from cache");
+
+            let tag_store = &self.tag_store;
+            for rel in &relations {
+                let kind = match classify::classify(&rel.tags, tag_store, layers) {
+                    Some(k) => k,
+                    None => continue,
+                };
+                match crate::multipolygon::assemble_multipolygon(
+                    &rel.outer_way_ids,
+                    &rel.inner_way_ids,
+                    &way_geom_map,
+                ) {
+                    Ok((geometry, report)) => {
+                        if !report.warnings.is_empty() {
+                            tracing::debug!(
+                                rel_id = rel.id,
+                                warnings = report.warnings.len(),
+                                "multipolygon assembled with warnings"
+                            );
+                        }
+                        let bb = geometry.bbox();
+                        bbox.expand(bb.min_lon, bb.min_lat);
+                        bbox.expand(bb.max_lon, bb.max_lat);
+                        features.push(Feature {
+                            id: rel.id,
+                            kind,
+                            geometry,
+                            tags: rel.tags.clone(),
+                        });
+                    }
+                    Err(e) => {
+                        tracing::debug!(rel_id = rel.id, error = ?e, "multipolygon skipped");
+                    }
+                }
+            }
+
+            info!(features = features.len(), "Multipolygon features assembled");
+        }
+
+        Ok((features, way_count, relation_count, bbox))
+    }
 }
 
 /// Extract a tagged node as a POI point feature if it classifies.
@@ -257,6 +398,7 @@ fn process_poi_node<'a>(
     lat: f64,
     tags_iter: impl Iterator<Item = (&'a str, &'a str)>,
     tag_store: &TagStore,
+    layers: &LayerSet,
     features: &mut Vec<Feature>,
     bbox: &mut BBox,
 ) {
@@ -269,7 +411,7 @@ fn process_poi_node<'a>(
     if !has_tags {
         return;
     }
-    if let Some(kind) = classify::classify(&tags, tag_store) {
+    if let Some(kind) = classify::classify(&tags, tag_store, layers) {
         bbox.expand(lon, lat);
         features.push(Feature {
             id,
@@ -287,244 +429,6 @@ struct RelationInfo {
     inner_way_ids: Vec<i64>,
 }
 
-/// Chain ways end-to-end to form closed rings.
-///
-/// OSM multipolygon outer/inner ways may need to be concatenated
-/// (the end node of one way == the start node of the next) to form
-/// a complete closed ring.
-fn chain_ways(
-    way_ids: &[i64],
-    way_geoms: &HashMap<i64, Vec<Coord<f64>>>,
-) -> Vec<Vec<Coord<f64>>> {
-    let mut remaining: Vec<Vec<Coord<f64>>> = way_ids
-        .iter()
-        .filter_map(|id| way_geoms.get(id).cloned())
-        .filter(|c| c.len() >= 2)
-        .collect();
-
-    let mut rings = Vec::new();
-
-    while !remaining.is_empty() {
-        let mut ring = remaining.swap_remove(0);
-
-        // Try to extend the ring by finding connecting ways
-        let mut changed = true;
-        while changed {
-            changed = false;
-            let end = match ring.last() {
-                Some(c) => *c,
-                None => break,
-            };
-            let start = ring[0];
-
-            // Check if ring is already closed
-            if ring.len() >= 4 && (end.x - start.x).abs() < 1e-8 && (end.y - start.y).abs() < 1e-8
-            {
-                break;
-            }
-
-            for i in 0..remaining.len() {
-                let candidate = &remaining[i];
-                let c_start = candidate[0];
-                let c_end = *candidate.last().unwrap();
-
-                if (end.x - c_start.x).abs() < 1e-8 && (end.y - c_start.y).abs() < 1e-8 {
-                    // Append candidate (forward)
-                    let mut way = remaining.swap_remove(i);
-                    ring.extend(way.drain(1..)); // skip duplicate start point
-                    changed = true;
-                    break;
-                } else if (end.x - c_end.x).abs() < 1e-8 && (end.y - c_end.y).abs() < 1e-8 {
-                    // Append candidate (reversed)
-                    let mut way = remaining.swap_remove(i);
-                    way.reverse();
-                    ring.extend(way.drain(1..));
-                    changed = true;
-                    break;
-                }
-            }
-        }
-
-        if ring.len() >= 3 {
-            rings.push(ring);
-        }
-    }
-
-    rings
-}
-
-impl PbfProcessor {
-    /// Pass 3: Assemble multipolygon relations.
-    ///
-    /// Sub-passes:
-    /// 3a: Scan relations to find multipolygons and collect member way IDs
-    /// 3b: Re-read PBF to build geometries for member ways
-    /// 3c: Assemble multipolygons from way geometries
-    fn pass3_relations(
-        &self,
-        path: &Path,
-        node_store: &dyn NodeLocationStore,
-        bbox: &mut BBox,
-    ) -> OmmResult<(Vec<Feature>, u64)> {
-        // 3a: Collect multipolygon relation info
-        let reader = ElementReader::from_path(path).map_err(|e| OmmError::Pbf(e.to_string()))?;
-        let tag_store = &self.tag_store;
-
-        let relations: Vec<RelationInfo> = reader
-            .par_map_reduce(
-                |element| {
-                    let mut local = Vec::new();
-                    if let Element::Relation(rel) = element {
-                        let mut is_mp = false;
-                        let mut tags = Tags::new();
-                        for (k, v) in rel.tags() {
-                            if k == "type" && v == "multipolygon" {
-                                is_mp = true;
-                            }
-                            tags.push(tag_store.intern_key(k), tag_store.intern_value(v));
-                        }
-                        if is_mp {
-                            let mut outers = Vec::new();
-                            let mut inners = Vec::new();
-                            for member in rel.members() {
-                                if member.member_type == RelMemberType::Way {
-                                    match member.role().unwrap_or("") {
-                                        "outer" | "" => outers.push(member.member_id),
-                                        "inner" => inners.push(member.member_id),
-                                        _ => {}
-                                    }
-                                }
-                            }
-                            if !outers.is_empty() {
-                                local.push(RelationInfo {
-                                    id: rel.id(),
-                                    tags,
-                                    outer_way_ids: outers,
-                                    inner_way_ids: inners,
-                                });
-                            }
-                        }
-                    }
-                    local
-                },
-                Vec::new,
-                |mut a, b| {
-                    a.extend(b);
-                    a
-                },
-            )
-            .map_err(|e| OmmError::Pbf(e.to_string()))?;
-
-        let relation_count = relations.len() as u64;
-        info!(relations = relation_count, "Multipolygon relations found");
-
-        if relations.is_empty() {
-            return Ok((Vec::new(), 0));
-        }
-
-        // Collect all needed way IDs
-        let needed_ways: HashSet<i64> = relations
-            .iter()
-            .flat_map(|r| r.outer_way_ids.iter().chain(r.inner_way_ids.iter()))
-            .copied()
-            .collect();
-        info!(ways = needed_ways.len(), "Member ways to resolve");
-
-        // 3b: Re-read PBF to get geometries for member ways
-        let reader = ElementReader::from_path(path).map_err(|e| OmmError::Pbf(e.to_string()))?;
-
-        let way_geoms: HashMap<i64, Vec<Coord<f64>>> = reader
-            .par_map_reduce(
-                |element| {
-                    let mut local: HashMap<i64, Vec<Coord<f64>>> = HashMap::new();
-                    if let Element::Way(way) = element {
-                        if needed_ways.contains(&way.id()) {
-                            let coords: Vec<Coord<f64>> = way
-                                .refs()
-                                .filter_map(|id| {
-                                    node_store.get(id).map(|ll| Coord {
-                                        x: ll.lon,
-                                        y: ll.lat,
-                                    })
-                                })
-                                .collect();
-                            if coords.len() >= 2 {
-                                local.insert(way.id(), coords);
-                            }
-                        }
-                    }
-                    local
-                },
-                HashMap::new,
-                |mut a, b| {
-                    a.extend(b);
-                    a
-                },
-            )
-            .map_err(|e| OmmError::Pbf(e.to_string()))?;
-
-        info!(resolved = way_geoms.len(), "Member way geometries resolved");
-
-        // 3c: Assemble multipolygons
-        let mut features = Vec::new();
-        for rel in &relations {
-            // Assemble outer rings by chaining ways
-            let outer_rings = chain_ways(&rel.outer_way_ids, &way_geoms);
-            if outer_rings.is_empty() {
-                continue;
-            }
-
-            let inner_rings = chain_ways(&rel.inner_way_ids, &way_geoms);
-
-            // Classify by tags
-            let kind = match classify::classify(&rel.tags, tag_store) {
-                Some(k) => k,
-                None => continue,
-            };
-
-            // Build polygon(s)
-            let geometry = if outer_rings.len() == 1 {
-                let exterior = LineString::new(outer_rings.into_iter().next().unwrap());
-                let holes: Vec<LineString<f64>> = inner_rings
-                    .into_iter()
-                    .map(LineString::new)
-                    .collect();
-                for c in exterior.coords() {
-                    bbox.expand(c.x, c.y);
-                }
-                Geometry::Polygon(Polygon::new(exterior, holes))
-            } else {
-                // Multiple outer rings → MultiPolygon
-                // Simple assignment: all inner rings go to the first polygon
-                // (proper assignment would check containment)
-                let mut polys: Vec<Polygon<f64>> = Vec::new();
-                for (i, ring) in outer_rings.into_iter().enumerate() {
-                    let exterior = LineString::new(ring);
-                    for c in exterior.coords() {
-                        bbox.expand(c.x, c.y);
-                    }
-                    let holes = if i == 0 {
-                        inner_rings.iter().map(|r| LineString::new(r.clone())).collect()
-                    } else {
-                        vec![]
-                    };
-                    polys.push(Polygon::new(exterior, holes));
-                }
-                Geometry::MultiPolygon(MultiPolygon::new(polys))
-            };
-
-            features.push(Feature {
-                id: rel.id,
-                kind,
-                geometry,
-                tags: rel.tags.clone(),
-            });
-        }
-
-        info!(features = features.len(), "Multipolygon features assembled");
-        Ok((features, relation_count))
-    }
-}
 
 impl Default for PbfProcessor {
     fn default() -> Self {

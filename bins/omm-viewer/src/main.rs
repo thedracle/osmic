@@ -131,7 +131,7 @@ fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<V
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
 
-    // Sort by layer z-order
+    // Sort by layer z-order. POI layers render on top of everything else.
     let mut sorted: Vec<&DecodedFeature> = features.iter().collect();
     sorted.sort_by_key(|f| match f.layer.as_str() {
         "landuse" => 0,
@@ -142,6 +142,8 @@ fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<V
         "boundary" => 5,
         "railway" => 6,
         "highway" => 7,
+        "amenity" | "shop" | "office" | "craft" | "healthcare" | "tourism"
+        | "historic" | "place" => 9,
         _ => 8,
     });
 
@@ -164,6 +166,8 @@ fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<V
                 .as_deref()
                 .is_some_and(|c| matches!(c, "river" | "stream" | "canal")));
 
+        let is_point = matches!(feature.geometry, omm_core::Geometry::Point(_));
+
         if is_area {
             if let Some(color) = area_color(&feature.layer, feature.class.as_deref()) {
                 tessellate_fill(&feature.geometry, &color, &mut vertices, &mut indices);
@@ -174,6 +178,18 @@ fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<V
                 // Convert pixel width to world-space degrees
                 let world_width = px_width * px_to_deg;
                 tessellate_stroke(&feature.geometry, &color, world_width, &mut vertices, &mut indices);
+            }
+        }
+        if is_point {
+            if let Some((color, px_radius)) = point_style(&feature.layer, feature.class.as_deref()) {
+                let world_radius = px_radius * px_to_deg;
+                tessellate_point(
+                    &feature.geometry,
+                    &color,
+                    world_radius,
+                    &mut vertices,
+                    &mut indices,
+                );
             }
         }
     }
@@ -274,6 +290,72 @@ fn tessellate_stroke(
         vertices.extend_from_slice(&geometry.vertices);
         indices.extend(geometry.indices.iter().map(|i| i + base));
     }
+}
+
+/// Emit a small disc (8 triangles from a 9-vertex fan) centered on the
+/// feature's point coordinate. The radius is in world-space degrees —
+/// callers pass pixel-space radius × `px_to_deg` so dots stay the same
+/// visual size at any zoom level.
+fn tessellate_point(
+    geom: &omm_core::Geometry,
+    color: &Color,
+    radius: f32,
+    vertices: &mut Vec<Vertex>,
+    indices: &mut Vec<u32>,
+) {
+    let rgba = [color.r, color.g, color.b, color.a];
+
+    let (cx, cy) = match geom {
+        omm_core::Geometry::Point(p) => (p.x() as f32, p.y() as f32),
+        _ => return,
+    };
+
+    // 8-segment disc approximation. 9 vertices (1 center + 8 rim),
+    // 8 triangles fanning out from the center.
+    const SEGMENTS: u32 = 8;
+
+    let base = vertices.len() as u32;
+    vertices.push(Vertex {
+        position: [cx, cy],
+        color: rgba,
+    });
+    for i in 0..SEGMENTS {
+        let theta = (i as f32) * std::f32::consts::TAU / (SEGMENTS as f32);
+        vertices.push(Vertex {
+            position: [cx + radius * theta.cos(), cy + radius * theta.sin()],
+            color: rgba,
+        });
+    }
+    for i in 0..SEGMENTS {
+        indices.push(base);
+        indices.push(base + 1 + i);
+        indices.push(base + 1 + ((i + 1) % SEGMENTS));
+    }
+}
+
+/// Pixel-space radius and fill color for POI layers. The viewer lacks a
+/// real symbol/icon pipeline, so every point renders as a single flat
+/// disc keyed by layer name. Returns None for non-POI layers.
+fn point_style(layer: &str, class: Option<&str>) -> Option<(Color, f32)> {
+    let (hex, radius_px) = match layer {
+        "shop" => ("#ac39ac", 3.5),      // magenta — retail
+        "amenity" => match class.unwrap_or("") {
+            "restaurant" | "cafe" | "bar" | "pub" | "fast_food" => ("#d96c22", 3.5),
+            "hospital" | "clinic" | "pharmacy" | "doctors" => ("#c8372d", 3.5),
+            "school" | "university" | "college" | "kindergarten" => ("#f0c330", 3.0),
+            "bank" | "atm" => ("#445566", 3.0),
+            "fuel" | "charging_station" | "car_wash" => ("#2878a6", 3.0),
+            _ => ("#6f6f6f", 2.5),
+        },
+        "office" => ("#4a6fa5", 3.0),
+        "craft" => ("#8b5a3c", 3.0),
+        "healthcare" => ("#c8372d", 3.5),
+        "tourism" => ("#3fa34d", 3.5),
+        "historic" => ("#7a5c40", 3.0),
+        "place" => ("#333333", 4.0),
+        _ => return None,
+    };
+    Some((Color::from_hex(hex)?, radius_px))
 }
 
 fn area_color(layer: &str, class: Option<&str>) -> Option<Color> {
@@ -378,21 +460,30 @@ fn collect_labels(features: &[DecodedFeature]) -> Vec<MapLabel> {
         // Wider values = visible when more zoomed out
         let (font_size, color, max_view_deg) = match f.layer.as_str() {
             "highway" => match f.class.as_deref().unwrap_or("") {
-                "motorway" | "trunk" => (12.0, [0x55, 0x55, 0x55, 0xFF], 20.0),
-                "primary" => (11.0, [0x55, 0x55, 0x55, 0xFF], 5.0),
-                "secondary" | "tertiary" => (10.0, [0x66, 0x66, 0x66, 0xFF], 1.0),
-                "residential" | "unclassified" => (9.0, [0x77, 0x77, 0x77, 0xFF], 0.2),
-                _ => (9.0, [0x77, 0x77, 0x77, 0xFF], 0.1),
+                "motorway" | "trunk" => (11.0, [0x55, 0x55, 0x55, 0xFF], 20.0),
+                "primary" => (10.0, [0x55, 0x55, 0x55, 0xFF], 5.0),
+                "secondary" | "tertiary" => (9.0, [0x66, 0x66, 0x66, 0xFF], 1.0),
+                "residential" | "unclassified" => (8.5, [0x77, 0x77, 0x77, 0xFF], 0.2),
+                _ => (8.0, [0x77, 0x77, 0x77, 0xFF], 0.1),
             },
-            "water" => (11.0, [0x6b, 0x9d, 0xaf, 0xFF], 10.0),
+            "water" => (13.0, [0x6b, 0x9d, 0xaf, 0xFF], 10.0),
             "place" => match f.class.as_deref().unwrap_or("") {
-                "city" => (20.0, [0x33, 0x33, 0x33, 0xFF], 360.0),
-                "town" => (15.0, [0x44, 0x44, 0x44, 0xFF], 30.0),
-                "village" => (12.0, [0x55, 0x55, 0x55, 0xFF], 5.0),
-                _ => (10.0, [0x66, 0x66, 0x66, 0xFF], 2.0),
+                "city" => (24.0, [0x33, 0x33, 0x33, 0xFF], 360.0),
+                "town" => (18.0, [0x44, 0x44, 0x44, 0xFF], 30.0),
+                "village" => (14.0, [0x55, 0x55, 0x55, 0xFF], 5.0),
+                _ => (12.0, [0x66, 0x66, 0x66, 0xFF], 2.0),
             },
             "leisure" => (10.0, [0x3a, 0x7a, 0x3a, 0xFF], 1.0),
             "amenity" => (9.0, [0x73, 0x4a, 0x08, 0xFF], 0.05),
+            "shop" => (9.0, [0x5b, 0x3a, 0x0a, 0xFF], 0.05),
+            "tourism" => (9.0, [0x0d, 0x73, 0x77, 0xFF], 0.1),
+            "healthcare" => (9.0, [0xc4, 0x28, 0x1c, 0xFF], 0.05),
+            "office" => (8.0, [0x55, 0x55, 0x55, 0xFF], 0.05),
+            "craft" => (8.0, [0xb5, 0x65, 0x1d, 0xFF], 0.05),
+            "historic" => (9.0, [0x7b, 0x2d, 0x8b, 0xFF], 0.1),
+            "club" => (8.0, [0x55, 0x55, 0x88, 0xFF], 0.05),
+            "emergency" => (9.0, [0xcc, 0x00, 0x00, 0xFF], 0.1),
+            "education" => (9.0, [0x33, 0x66, 0x99, 0xFF], 0.1),
             _ => continue,
         };
 
@@ -419,6 +510,7 @@ fn render_labels_to_rgba(
     height: u32,
     font_system: &mut FontSystem,
     swash_cache: &mut SwashCache,
+    info_panel: Option<&InfoPanel>,
 ) -> Vec<u8> {
     let aspect = width as f64 / height as f64;
     let bb = camera.view_bbox(aspect);
@@ -444,7 +536,7 @@ fn render_labels_to_rgba(
     });
 
     let mut placed = 0;
-    let max_labels = 200; // cap for performance
+    let max_labels = 500; // cap for performance
 
     for &idx in &sorted_indices {
         if placed >= max_labels {
@@ -519,8 +611,14 @@ fn render_labels_to_rgba(
             }
         }
 
+        // Scale font size based on zoom: labels grow as you zoom in.
+        // base_zoom_deg is where the label first appears (max_view_deg).
+        // At that zoom the label is at its base font_size; zooming in 2x doubles it.
+        let zoom_scale = (label.max_view_deg / camera.zoom).sqrt().clamp(1.0, 4.0) as f32;
+        let effective_size = (label.font_size * zoom_scale).clamp(8.0, 40.0);
+
         // Shape and render this label
-        let metrics = Metrics::new(label.font_size, label.font_size * 1.2);
+        let metrics = Metrics::new(effective_size, effective_size * 1.2);
         let mut buffer = TextBuffer::new(font_system, metrics);
         let attrs = Attrs::new().family(Family::SansSerif);
         buffer.set_text(font_system, &label.text, &attrs, Shaping::Advanced, None);
@@ -531,7 +629,7 @@ fn render_labels_to_rgba(
             text_w = text_w.max(run.line_w);
         }
         let offset_x = px - text_w / 2.0;
-        let offset_y = py - label.font_size / 2.0;
+        let offset_y = py - effective_size / 2.0;
 
         // Halo
         let halo = cosmic_text::Color::rgba(255, 255, 255, 220);
@@ -557,7 +655,109 @@ fn render_labels_to_rgba(
         placed += 1;
     }
 
+    // Render info panel overlay if present
+    if let Some(panel) = info_panel {
+        render_info_panel(panel, &mut pixels, width, height, font_system, swash_cache);
+    }
+
     pixels
+}
+
+/// Render an info panel as a semi-transparent box with text lines.
+fn render_info_panel(
+    panel: &InfoPanel,
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+) {
+    let font_size = 36.0f32;
+    let line_height = (font_size * 1.5) as u32;
+    let padding = 24u32;
+    let panel_w = 800u32;
+    let panel_h = padding * 2 + (panel.lines.len() as u32) * line_height;
+
+    // Position panel near click, clamped to screen
+    let mut px = panel.screen_x as u32;
+    let mut py = panel.screen_y as u32;
+    if px + panel_w + 10 > width {
+        px = px.saturating_sub(panel_w + 10);
+    } else {
+        px += 10;
+    }
+    if py + panel_h + 10 > height {
+        py = py.saturating_sub(panel_h + 10);
+    }
+
+    // Draw semi-transparent dark background
+    for row in py..py.saturating_add(panel_h).min(height) {
+        for col in px..px.saturating_add(panel_w).min(width) {
+            let idx = ((row * width + col) * 4) as usize;
+            if idx + 3 < pixels.len() {
+                // Dark background with alpha blending
+                pixels[idx] = 30;
+                pixels[idx + 1] = 30;
+                pixels[idx + 2] = 40;
+                pixels[idx + 3] = 220;
+            }
+        }
+    }
+
+    // Draw a thin border
+    let border_color: [u8; 4] = [100, 140, 200, 255];
+    for col in px..px.saturating_add(panel_w).min(width) {
+        for &row in &[py, py.saturating_add(panel_h).saturating_sub(1)] {
+            if row < height {
+                let idx = ((row * width + col) * 4) as usize;
+                if idx + 3 < pixels.len() {
+                    pixels[idx..idx + 4].copy_from_slice(&border_color);
+                }
+            }
+        }
+    }
+    for row in py..py.saturating_add(panel_h).min(height) {
+        for &col in &[px, px.saturating_add(panel_w).saturating_sub(1)] {
+            if col < width {
+                let idx = ((row * width + col) * 4) as usize;
+                if idx + 3 < pixels.len() {
+                    pixels[idx..idx + 4].copy_from_slice(&border_color);
+                }
+            }
+        }
+    }
+
+    // Render text lines
+    let text_x = (px + padding) as f32;
+    let mut text_y = (py + padding) as f32;
+
+    for (i, (label, value)) in panel.lines.iter().enumerate() {
+        let text = if i == 0 {
+            // First line (name) — larger, bold-ish
+            value.clone()
+        } else {
+            format!("{}: {}", label, value)
+        };
+
+        let size = if i == 0 { font_size + 10.0 } else { font_size };
+        let metrics = Metrics::new(size, size * 1.3);
+        let mut buffer = TextBuffer::new(font_system, metrics);
+        let attrs = Attrs::new().family(Family::SansSerif);
+        buffer.set_text(font_system, &text, &attrs, Shaping::Advanced, None);
+        buffer.shape_until_scroll(font_system, false);
+
+        let text_color = if i == 0 {
+            cosmic_text::Color::rgba(255, 255, 255, 255)
+        } else {
+            cosmic_text::Color::rgba(200, 210, 220, 255)
+        };
+
+        draw_text_to_buf(
+            &buffer, font_system, swash_cache, pixels, width, height,
+            text_x, text_y, text_color,
+        );
+        text_y += line_height as f32;
+    }
 }
 
 fn draw_text_to_buf(
@@ -608,15 +808,39 @@ struct MapApp {
     font_system: FontSystem,
     swash_cache: SwashCache,
     labels: Vec<MapLabel>,
+    /// Decoded features for click-to-inspect
+    click_features: Vec<ClickFeature>,
     // wgpu state (initialized on resume)
     gpu: Option<GpuState>,
     // input state
     dragging: bool,
+    drag_distance: f64,
     last_cursor: PhysicalPosition<f64>,
     needs_retessellate: bool,
     current_tile_zoom: u8,
     /// Bbox of the area we've loaded tiles for
     loaded_bbox: BBox,
+    /// Info panel shown on click (None = hidden)
+    info_panel: Option<InfoPanel>,
+    /// Whether the info panel overlay needs re-rendering
+    info_panel_dirty: bool,
+}
+
+/// On-screen info panel for a clicked feature.
+struct InfoPanel {
+    lines: Vec<(String, String)>, // (label, value) pairs
+    screen_x: f32,
+    screen_y: f32,
+}
+
+/// Lightweight feature data for click-to-inspect.
+struct ClickFeature {
+    lon: f64,
+    lat: f64,
+    layer: String,
+    class: Option<String>,
+    name: Option<String>,
+    tags: Vec<(String, String)>,
 }
 
 struct GpuState {
@@ -651,12 +875,116 @@ impl MapApp {
             font_system: FontSystem::new(),
             swash_cache: SwashCache::new(),
             labels: Vec::new(),
+            click_features: Vec::new(),
             gpu: None,
             dragging: false,
+            drag_distance: 0.0,
             last_cursor: PhysicalPosition::new(0.0, 0.0),
             needs_retessellate: true,
             current_tile_zoom: 0,
             loaded_bbox: BBox::empty(),
+            info_panel: None,
+            info_panel_dirty: false,
+        }
+    }
+
+    fn handle_click(&mut self, cursor: PhysicalPosition<f64>) {
+        let gpu = match &self.gpu {
+            Some(g) => g,
+            None => return,
+        };
+        let aspect = gpu.config.width as f64 / gpu.config.height as f64;
+        let bb = self.camera.view_bbox(aspect);
+        let w = gpu.config.width as f64;
+        let h = gpu.config.height as f64;
+
+        // Convert pixel position to lon/lat
+        let click_lon = bb.min_lon + (cursor.x / w) * bb.width();
+        let click_lat = bb.max_lat - (cursor.y / h) * bb.height();
+
+        // Find nearest POI within a reasonable radius
+        let search_radius = self.camera.zoom * 0.02; // ~2% of view width
+        let cos_lat = (click_lat.to_radians()).cos();
+        let mut best: Option<(f64, usize)> = None;
+
+        for (i, f) in self.click_features.iter().enumerate() {
+            let dlat = f.lat - click_lat;
+            let dlon = (f.lon - click_lon) * cos_lat; // correct for latitude
+            let dist = dlat * dlat + dlon * dlon;
+            if dist < search_radius * search_radius {
+                if best.is_none() || dist < best.unwrap().0 {
+                    best = Some((dist, i));
+                }
+            }
+        }
+
+        if let Some((_, idx)) = best {
+            let feature = &self.click_features[idx];
+            let mut lines: Vec<(String, String)> = Vec::new();
+
+            if let Some(ref name) = feature.name {
+                lines.push(("Name".into(), name.clone()));
+            }
+            if let Some(ref class) = feature.class {
+                let pretty = format!("{} / {}", feature.layer, class);
+                lines.push(("Type".into(), pretty));
+            }
+
+            // Build address
+            let num = feature.tags.iter().find(|(k, _)| k == "addr:housenumber").map(|(_, v)| v.as_str());
+            let street = feature.tags.iter().find(|(k, _)| k == "addr:street").map(|(_, v)| v.as_str());
+            let city = feature.tags.iter().find(|(k, _)| k == "addr:city").map(|(_, v)| v.as_str());
+            let postcode = feature.tags.iter().find(|(k, _)| k == "addr:postcode").map(|(_, v)| v.as_str());
+            let mut addr = String::new();
+            if let Some(n) = num { addr.push_str(n); addr.push(' '); }
+            if let Some(s) = street { addr.push_str(s); }
+            if let Some(c) = city {
+                if !addr.is_empty() { addr.push_str(", "); }
+                addr.push_str(c);
+            }
+            if let Some(p) = postcode {
+                if !addr.is_empty() { addr.push(' '); }
+                addr.push_str(p);
+            }
+            if !addr.is_empty() {
+                lines.push(("Address".into(), addr));
+            }
+
+            // Other useful tags
+            let tag_labels = &[
+                ("phone", "Phone"),
+                ("contact:phone", "Phone"),
+                ("website", "Website"),
+                ("contact:website", "Website"),
+                ("opening_hours", "Hours"),
+                ("cuisine", "Cuisine"),
+                ("brand", "Brand"),
+                ("operator", "Operator"),
+                ("description", "Info"),
+            ];
+            for &(tag_key, label) in tag_labels {
+                if let Some((_, v)) = feature.tags.iter().find(|(k, _)| k == tag_key) {
+                    lines.push((label.into(), v.clone()));
+                }
+            }
+
+            lines.push(("Location".into(), format!("{:.6}, {:.6}", feature.lat, feature.lon)));
+
+            // Cap lines to prevent panel overflow
+            lines.truncate(12);
+
+            self.info_panel = Some(InfoPanel {
+                lines,
+                screen_x: cursor.x as f32,
+                screen_y: cursor.y as f32,
+            });
+            self.info_panel_dirty = true;
+        } else {
+            // Click on empty area — dismiss panel
+            if self.info_panel.is_some() {
+                self.info_panel = None;
+                self.info_panel_dirty = true;
+            }
         }
     }
 
@@ -703,6 +1031,28 @@ impl MapApp {
 
         self.labels = collect_labels(&features);
         info!(labels = self.labels.len(), "Labels collected");
+
+        // Collect clickable POI features (only named POIs to keep it manageable)
+        self.click_features = features
+            .iter()
+            .filter(|f| f.name.is_some() && matches!(
+                f.layer.as_str(),
+                "amenity" | "shop" | "tourism" | "office" | "healthcare" | "craft" | "historic" | "leisure" | "club" | "emergency" | "education"
+            ))
+            .map(|f| {
+                let bb = f.geometry.bbox();
+                let center = bb.center();
+                ClickFeature {
+                    lon: center.lon,
+                    lat: center.lat,
+                    layer: f.layer.clone(),
+                    class: f.class.clone(),
+                    name: f.name.clone(),
+                    tags: f.tags.clone(),
+                }
+            })
+            .collect();
+        info!(clickable = self.click_features.len(), "Click features indexed");
 
         let (mut vertices, mut indices) = tessellate_features(&features, self.camera.zoom);
 
@@ -772,6 +1122,7 @@ impl MapApp {
             h,
             &mut self.font_system,
             &mut self.swash_cache,
+            self.info_panel.as_ref(),
         );
 
         let gpu = self.gpu.as_mut().unwrap();
@@ -1184,9 +1535,22 @@ impl ApplicationHandler for MapApp {
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == MouseButton::Left {
                     let was_dragging = self.dragging;
-                    self.dragging = state == ElementState::Pressed;
+                    if state == ElementState::Pressed {
+                        self.dragging = true;
+                        self.drag_distance = 0.0;
+                    } else {
+                        self.dragging = false;
+                    }
                     // Reload tiles when drag ends if we've panned outside loaded area
                     if was_dragging && !self.dragging {
+                        // Click (not drag) — find nearest feature
+                        if self.drag_distance < 5.0 {
+                            self.handle_click(self.last_cursor);
+                            if self.info_panel_dirty {
+                                self.update_label_texture();
+                                self.info_panel_dirty = false;
+                            }
+                        }
                         let aspect = self.gpu.as_ref()
                             .map(|g| g.config.width as f64 / g.config.height as f64)
                             .unwrap_or(1.333);
@@ -1211,6 +1575,13 @@ impl ApplicationHandler for MapApp {
 
             WindowEvent::CursorMoved { position, .. } => {
                 if self.dragging {
+                    let dx = position.x - self.last_cursor.x;
+                    let dy = position.y - self.last_cursor.y;
+                    self.drag_distance += (dx * dx + dy * dy).sqrt();
+                    // Dismiss info panel while dragging
+                    if self.info_panel.is_some() {
+                        self.info_panel = None;
+                    }
                     let (w, h) = self
                         .gpu
                         .as_ref()
@@ -1246,6 +1617,9 @@ impl ApplicationHandler for MapApp {
                 let factor = 1.0 - scroll * 0.1;
                 self.camera.zoom = (self.camera.zoom * factor).clamp(0.001, 360.0);
                 self.update_projection();
+
+                // Dismiss info panel on zoom
+                self.info_panel = None;
 
                 // Reload tiles when zoom level changes or viewport doubles/halves
                 let new_tz = self.camera.tile_zoom();

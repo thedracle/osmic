@@ -364,6 +364,132 @@ pub fn default_style_json(source_url: &str) -> Style {
                 "text-halo-width": 1.0
             }
         }),
+        // Shop labels
+        json!({
+            "id": "shop-label",
+            "type": "symbol",
+            "source": "omm",
+            "source-layer": "shop",
+            "minzoom": 15,
+            "filter": ["has", "name"],
+            "layout": {
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Regular"],
+                "text-size": 10,
+                "text-padding": 5,
+                "text-allow-overlap": false
+            },
+            "paint": {
+                "text-color": "#5b3a0a",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.0
+            }
+        }),
+        // Tourism labels
+        json!({
+            "id": "tourism-label",
+            "type": "symbol",
+            "source": "omm",
+            "source-layer": "tourism",
+            "minzoom": 14,
+            "filter": ["has", "name"],
+            "layout": {
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Regular"],
+                "text-size": 10,
+                "text-padding": 5,
+                "text-allow-overlap": false
+            },
+            "paint": {
+                "text-color": "#0d7377",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.0
+            }
+        }),
+        // Healthcare labels
+        json!({
+            "id": "healthcare-label",
+            "type": "symbol",
+            "source": "omm",
+            "source-layer": "healthcare",
+            "minzoom": 15,
+            "filter": ["has", "name"],
+            "layout": {
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Regular"],
+                "text-size": 10,
+                "text-padding": 5,
+                "text-allow-overlap": false
+            },
+            "paint": {
+                "text-color": "#c4281c",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.0
+            }
+        }),
+        // Office labels
+        json!({
+            "id": "office-label",
+            "type": "symbol",
+            "source": "omm",
+            "source-layer": "office",
+            "minzoom": 15,
+            "filter": ["has", "name"],
+            "layout": {
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Regular"],
+                "text-size": 10,
+                "text-padding": 5,
+                "text-allow-overlap": false
+            },
+            "paint": {
+                "text-color": "#555",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.0
+            }
+        }),
+        // Craft labels
+        json!({
+            "id": "craft-label",
+            "type": "symbol",
+            "source": "omm",
+            "source-layer": "craft",
+            "minzoom": 15,
+            "filter": ["has", "name"],
+            "layout": {
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Regular"],
+                "text-size": 10,
+                "text-padding": 5,
+                "text-allow-overlap": false
+            },
+            "paint": {
+                "text-color": "#b5651d",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.0
+            }
+        }),
+        // Historic labels
+        json!({
+            "id": "historic-label",
+            "type": "symbol",
+            "source": "omm",
+            "source-layer": "historic",
+            "minzoom": 14,
+            "filter": ["has", "name"],
+            "layout": {
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Regular"],
+                "text-size": 10,
+                "text-padding": 5,
+                "text-allow-overlap": false
+            },
+            "paint": {
+                "text-color": "#7b2d8b",
+                "text-halo-color": "#fff",
+                "text-halo-width": 1.0
+            }
+        }),
         // Place labels
         json!({
             "id": "place-label",

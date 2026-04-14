@@ -364,6 +364,313 @@ impl LeisureKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ShopKind {
+    Supermarket,
+    Convenience,
+    Clothes,
+    Hairdresser,
+    CarRepair,
+    Bakery,
+    Beauty,
+    Car,
+    MobilePhone,
+    Hardware,
+    Butcher,
+    Alcohol,
+    Furniture,
+    Electronics,
+    DepartmentStore,
+    Mall,
+    Bicycle,
+    Books,
+    Jewelry,
+    Gift,
+    Florist,
+    Pet,
+    Sports,
+    Optician,
+    Other,
+}
+
+impl ShopKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "supermarket" => Self::Supermarket,
+            "convenience" => Self::Convenience,
+            "clothes" => Self::Clothes,
+            "hairdresser" => Self::Hairdresser,
+            "car_repair" => Self::CarRepair,
+            "bakery" => Self::Bakery,
+            "beauty" => Self::Beauty,
+            "car" => Self::Car,
+            "mobile_phone" => Self::MobilePhone,
+            "hardware" => Self::Hardware,
+            "butcher" => Self::Butcher,
+            "alcohol" => Self::Alcohol,
+            "furniture" => Self::Furniture,
+            "electronics" => Self::Electronics,
+            "department_store" => Self::DepartmentStore,
+            "mall" => Self::Mall,
+            "bicycle" => Self::Bicycle,
+            "books" => Self::Books,
+            "jewelry" => Self::Jewelry,
+            "gift" => Self::Gift,
+            "florist" => Self::Florist,
+            "pet" => Self::Pet,
+            "sports" => Self::Sports,
+            "optician" => Self::Optician,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TourismKind {
+    Hotel,
+    Motel,
+    Attraction,
+    Museum,
+    Viewpoint,
+    Information,
+    GuestHouse,
+    CampSite,
+    PicnicSite,
+    ThemePark,
+    Zoo,
+    Hostel,
+    Artwork,
+    Other,
+}
+
+impl TourismKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "hotel" => Self::Hotel,
+            "motel" => Self::Motel,
+            "attraction" => Self::Attraction,
+            "museum" => Self::Museum,
+            "viewpoint" => Self::Viewpoint,
+            "information" => Self::Information,
+            "guest_house" => Self::GuestHouse,
+            "camp_site" => Self::CampSite,
+            "picnic_site" => Self::PicnicSite,
+            "theme_park" => Self::ThemePark,
+            "zoo" => Self::Zoo,
+            "hostel" => Self::Hostel,
+            "artwork" => Self::Artwork,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum OfficeKind {
+    Company,
+    Government,
+    Insurance,
+    Lawyer,
+    EstateAgent,
+    Financial,
+    It,
+    Ngo,
+    Accountant,
+    Architect,
+    Other,
+}
+
+impl OfficeKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "company" => Self::Company,
+            "government" => Self::Government,
+            "insurance" => Self::Insurance,
+            "lawyer" => Self::Lawyer,
+            "estate_agent" => Self::EstateAgent,
+            "financial" => Self::Financial,
+            "it" => Self::It,
+            "ngo" => Self::Ngo,
+            "accountant" => Self::Accountant,
+            "architect" => Self::Architect,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum HealthcareKind {
+    Doctor,
+    Dentist,
+    Clinic,
+    Hospital,
+    Pharmacy,
+    Optometrist,
+    Physiotherapist,
+    Laboratory,
+    Rehabilitation,
+    Other,
+}
+
+impl HealthcareKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "doctor" => Self::Doctor,
+            "dentist" => Self::Dentist,
+            "clinic" => Self::Clinic,
+            "hospital" => Self::Hospital,
+            "pharmacy" => Self::Pharmacy,
+            "optometrist" => Self::Optometrist,
+            "physiotherapist" => Self::Physiotherapist,
+            "laboratory" => Self::Laboratory,
+            "rehabilitation" => Self::Rehabilitation,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CraftKind {
+    Carpenter,
+    Electrician,
+    Plumber,
+    Painter,
+    Brewery,
+    Photographer,
+    Tailor,
+    Hvac,
+    Shoemaker,
+    Gardener,
+    Locksmith,
+    Roofer,
+    Other,
+}
+
+impl CraftKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "carpenter" => Self::Carpenter,
+            "electrician" => Self::Electrician,
+            "plumber" => Self::Plumber,
+            "painter" => Self::Painter,
+            "brewery" => Self::Brewery,
+            "photographer" => Self::Photographer,
+            "tailor" => Self::Tailor,
+            "hvac" => Self::Hvac,
+            "shoemaker" => Self::Shoemaker,
+            "gardener" => Self::Gardener,
+            "locksmith" => Self::Locksmith,
+            "roofer" => Self::Roofer,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum HistoricKind {
+    Monument,
+    Memorial,
+    Castle,
+    Ruins,
+    ArchaeologicalSite,
+    Fort,
+    Battlefield,
+    Building,
+    Other,
+}
+
+impl HistoricKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "monument" => Self::Monument,
+            "memorial" => Self::Memorial,
+            "castle" => Self::Castle,
+            "ruins" => Self::Ruins,
+            "archaeological_site" => Self::ArchaeologicalSite,
+            "fort" => Self::Fort,
+            "battlefield" => Self::Battlefield,
+            "building" => Self::Building,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ClubKind {
+    Sport,
+    Social,
+    Veterans,
+    Music,
+    Gaming,
+    Fishing,
+    Other,
+}
+
+impl ClubKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "sport" => Self::Sport,
+            "social" => Self::Social,
+            "veterans" => Self::Veterans,
+            "music" => Self::Music,
+            "gaming" => Self::Gaming,
+            "fishing" => Self::Fishing,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EmergencyKind {
+    AmbulanceStation,
+    FireStation,
+    Hospital,
+    Phone,
+    Defibrillator,
+    AssemblyPoint,
+    Other,
+}
+
+impl EmergencyKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "ambulance_station" => Self::AmbulanceStation,
+            "fire_station" | "fire_hydrant" => Self::FireStation,
+            "hospital" => Self::Hospital,
+            "phone" => Self::Phone,
+            "defibrillator" => Self::Defibrillator,
+            "assembly_point" => Self::AssemblyPoint,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EducationKind {
+    School,
+    University,
+    College,
+    Kindergarten,
+    LanguageSchool,
+    DrivingSchool,
+    MusicSchool,
+    Other,
+}
+
+impl EducationKind {
+    pub fn from_tag_value(val: &str) -> Self {
+        match val {
+            "school" => Self::School,
+            "university" => Self::University,
+            "college" => Self::College,
+            "kindergarten" => Self::Kindergarten,
+            "language_school" => Self::LanguageSchool,
+            "driving_school" => Self::DrivingSchool,
+            "music_school" => Self::MusicSchool,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BoundaryKind {
     Administrative,
     NationalPark,
@@ -422,6 +729,15 @@ pub enum FeatureKind {
     Railway(RailwayKind),
     Amenity(AmenityKind),
     Leisure(LeisureKind),
+    Shop(ShopKind),
+    Tourism(TourismKind),
+    Office(OfficeKind),
+    Healthcare(HealthcareKind),
+    Craft(CraftKind),
+    Historic(HistoricKind),
+    Club(ClubKind),
+    Emergency(EmergencyKind),
+    Education(EducationKind),
     Boundary(BoundaryKind),
     Place(PlaceKind),
 }
@@ -461,6 +777,8 @@ impl FeatureKind {
                 )
                 | FeatureKind::Amenity(AmenityKind::Parking)
                 | FeatureKind::Boundary(_)
+                | FeatureKind::Historic(HistoricKind::Castle | HistoricKind::Fort | HistoricKind::Ruins)
+                | FeatureKind::Tourism(TourismKind::ThemePark | TourismKind::Zoo | TourismKind::CampSite)
         )
     }
 
@@ -687,6 +1005,173 @@ impl LeisureKind {
     }
 }
 
+impl ShopKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Supermarket => "supermarket",
+            Self::Convenience => "convenience",
+            Self::Clothes => "clothes",
+            Self::Hairdresser => "hairdresser",
+            Self::CarRepair => "car_repair",
+            Self::Bakery => "bakery",
+            Self::Beauty => "beauty",
+            Self::Car => "car",
+            Self::MobilePhone => "mobile_phone",
+            Self::Hardware => "hardware",
+            Self::Butcher => "butcher",
+            Self::Alcohol => "alcohol",
+            Self::Furniture => "furniture",
+            Self::Electronics => "electronics",
+            Self::DepartmentStore => "department_store",
+            Self::Mall => "mall",
+            Self::Bicycle => "bicycle",
+            Self::Books => "books",
+            Self::Jewelry => "jewelry",
+            Self::Gift => "gift",
+            Self::Florist => "florist",
+            Self::Pet => "pet",
+            Self::Sports => "sports",
+            Self::Optician => "optician",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl TourismKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Hotel => "hotel",
+            Self::Motel => "motel",
+            Self::Attraction => "attraction",
+            Self::Museum => "museum",
+            Self::Viewpoint => "viewpoint",
+            Self::Information => "information",
+            Self::GuestHouse => "guest_house",
+            Self::CampSite => "camp_site",
+            Self::PicnicSite => "picnic_site",
+            Self::ThemePark => "theme_park",
+            Self::Zoo => "zoo",
+            Self::Hostel => "hostel",
+            Self::Artwork => "artwork",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl OfficeKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Company => "company",
+            Self::Government => "government",
+            Self::Insurance => "insurance",
+            Self::Lawyer => "lawyer",
+            Self::EstateAgent => "estate_agent",
+            Self::Financial => "financial",
+            Self::It => "it",
+            Self::Ngo => "ngo",
+            Self::Accountant => "accountant",
+            Self::Architect => "architect",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl HealthcareKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Doctor => "doctor",
+            Self::Dentist => "dentist",
+            Self::Clinic => "clinic",
+            Self::Hospital => "hospital",
+            Self::Pharmacy => "pharmacy",
+            Self::Optometrist => "optometrist",
+            Self::Physiotherapist => "physiotherapist",
+            Self::Laboratory => "laboratory",
+            Self::Rehabilitation => "rehabilitation",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl CraftKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Carpenter => "carpenter",
+            Self::Electrician => "electrician",
+            Self::Plumber => "plumber",
+            Self::Painter => "painter",
+            Self::Brewery => "brewery",
+            Self::Photographer => "photographer",
+            Self::Tailor => "tailor",
+            Self::Hvac => "hvac",
+            Self::Shoemaker => "shoemaker",
+            Self::Gardener => "gardener",
+            Self::Locksmith => "locksmith",
+            Self::Roofer => "roofer",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl HistoricKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Monument => "monument",
+            Self::Memorial => "memorial",
+            Self::Castle => "castle",
+            Self::Ruins => "ruins",
+            Self::ArchaeologicalSite => "archaeological_site",
+            Self::Fort => "fort",
+            Self::Battlefield => "battlefield",
+            Self::Building => "building",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl ClubKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Sport => "sport",
+            Self::Social => "social",
+            Self::Veterans => "veterans",
+            Self::Music => "music",
+            Self::Gaming => "gaming",
+            Self::Fishing => "fishing",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl EmergencyKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::AmbulanceStation => "ambulance_station",
+            Self::FireStation => "fire_station",
+            Self::Hospital => "hospital",
+            Self::Phone => "phone",
+            Self::Defibrillator => "defibrillator",
+            Self::AssemblyPoint => "assembly_point",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl EducationKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::School => "school",
+            Self::University => "university",
+            Self::College => "college",
+            Self::Kindergarten => "kindergarten",
+            Self::LanguageSchool => "language_school",
+            Self::DrivingSchool => "driving_school",
+            Self::MusicSchool => "music_school",
+            Self::Other => "other",
+        }
+    }
+}
+
 impl BoundaryKind {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -726,6 +1211,15 @@ impl FeatureKind {
             Self::Railway(_) => "railway",
             Self::Amenity(_) => "amenity",
             Self::Leisure(_) => "leisure",
+            Self::Shop(_) => "shop",
+            Self::Tourism(_) => "tourism",
+            Self::Office(_) => "office",
+            Self::Healthcare(_) => "healthcare",
+            Self::Craft(_) => "craft",
+            Self::Historic(_) => "historic",
+            Self::Club(_) => "club",
+            Self::Emergency(_) => "emergency",
+            Self::Education(_) => "education",
             Self::Boundary(_) => "boundary",
             Self::Place(_) => "place",
         }
@@ -742,6 +1236,15 @@ impl FeatureKind {
             Self::Railway(k) => k.as_str(),
             Self::Amenity(k) => k.as_str(),
             Self::Leisure(k) => k.as_str(),
+            Self::Shop(k) => k.as_str(),
+            Self::Tourism(k) => k.as_str(),
+            Self::Office(k) => k.as_str(),
+            Self::Healthcare(k) => k.as_str(),
+            Self::Craft(k) => k.as_str(),
+            Self::Historic(k) => k.as_str(),
+            Self::Club(k) => k.as_str(),
+            Self::Emergency(k) => k.as_str(),
+            Self::Education(k) => k.as_str(),
             Self::Boundary(k) => k.as_str(),
             Self::Place(k) => k.as_str(),
         }
@@ -784,6 +1287,22 @@ impl FeatureKind {
                 _ => 12,
             },
             Self::Amenity(_) => 13,
+            Self::Shop(_) => 14,
+            Self::Office(_) => 14,
+            Self::Healthcare(_) => 14,
+            Self::Craft(_) => 14,
+            Self::Tourism(t) => match t {
+                TourismKind::ThemePark | TourismKind::Zoo => 10,
+                TourismKind::Hotel | TourismKind::Museum | TourismKind::Attraction => 13,
+                _ => 14,
+            },
+            Self::Historic(h) => match h {
+                HistoricKind::Castle | HistoricKind::Fort => 10,
+                _ => 13,
+            },
+            Self::Club(_) => 14,
+            Self::Emergency(_) => 13,
+            Self::Education(_) => 13,
             Self::Leisure(l) => match l {
                 LeisureKind::Park | LeisureKind::NatureReserve => 8,
                 LeisureKind::GolfCourse | LeisureKind::Stadium => 10,

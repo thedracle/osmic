@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Process PBF
     let start = Instant::now();
     let processor = PbfProcessor::new();
-    let result = processor.process(&args.pbf_file, &node_store)?;
+    let result = processor.process(&args.pbf_file, &node_store, &omm_osm::LayerSet::all())?;
 
     // Build spatial index
     info!("Building spatial index...");

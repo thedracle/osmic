@@ -4,13 +4,21 @@ version = "0.1.0"
 edition = "2021"
 description = "CLI for tile generation, PBF inspection, render-to-image"
 
+[features]
+default = []
+mlt = ["omm-tiles/mlt"]
+
 [dependencies]
 omm-core = { workspace = true }
 omm-osm = { workspace = true }
 omm-index = { workspace = true }
 omm-extract = { workspace = true }
 omm-tiles = { workspace = true }
+omm-repl = { path = "../../crates/omm-repl" }
+omm-serve = { path = "../../crates/omm-serve" }
 omm-style = { workspace = true }
+reqwest = { version = "0.12", features = ["blocking"] }
 clap = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

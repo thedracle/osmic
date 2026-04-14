@@ -23,5 +23,5 @@ pub mod pipeline;
 pub use dedup::deduplicate;
 pub use entity::Entity;
 pub use filter::TagFilter;
-pub use output::{write_csv, write_json};
+pub use output::{write_csv, write_geojson, write_json};
 pub use pipeline::{ExtractConfig, ExtractResult, Extractor};
