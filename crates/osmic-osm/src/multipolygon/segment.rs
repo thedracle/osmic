@@ -63,9 +63,14 @@ impl SegmentList {
         let mut segments = Vec::new();
         let mut endpoint_index: HashMap<QuantKey, SmallVec<[usize; 2]>> = HashMap::new();
 
-        let push_way = |way_ids: &[i64], role: Role, segments: &mut Vec<NodeRefSegment>, idx: &mut HashMap<QuantKey, SmallVec<[usize; 2]>>| {
+        let push_way = |way_ids: &[i64],
+                        role: Role,
+                        segments: &mut Vec<NodeRefSegment>,
+                        idx: &mut HashMap<QuantKey, SmallVec<[usize; 2]>>| {
             for &way_id in way_ids {
-                let Some(coords) = way_geoms.get(&way_id) else { continue };
+                let Some(coords) = way_geoms.get(&way_id) else {
+                    continue;
+                };
                 if coords.len() < 2 {
                     continue;
                 }
@@ -91,10 +96,23 @@ impl SegmentList {
             }
         };
 
-        push_way(outer_way_ids, Role::Outer, &mut segments, &mut endpoint_index);
-        push_way(inner_way_ids, Role::Inner, &mut segments, &mut endpoint_index);
+        push_way(
+            outer_way_ids,
+            Role::Outer,
+            &mut segments,
+            &mut endpoint_index,
+        );
+        push_way(
+            inner_way_ids,
+            Role::Inner,
+            &mut segments,
+            &mut endpoint_index,
+        );
 
-        Self { segments, endpoint_index }
+        Self {
+            segments,
+            endpoint_index,
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -124,11 +142,7 @@ impl SegmentList {
     /// preferred over reversing matches (segment.end == point). This avoids
     /// unnecessary flips and produces more predictable ring orientations
     /// when the input data is already well-ordered.
-    pub fn find_matching_unused(
-        &self,
-        point: Coord<f64>,
-        role: Role,
-    ) -> Option<(usize, bool)> {
+    pub fn find_matching_unused(&self, point: Coord<f64>, role: Role) -> Option<(usize, bool)> {
         let key = quantize(point);
         let bucket = self.endpoint_index.get(&key)?;
 
@@ -210,7 +224,10 @@ mod tests {
             .expect("match must be found");
         let seg = list.get(idx).unwrap();
         assert_eq!(seg.way_id, 2);
-        assert!(!needs_reverse, "segment start already equals the query point");
+        assert!(
+            !needs_reverse,
+            "segment start already equals the query point"
+        );
     }
 
     #[test]
@@ -244,9 +261,13 @@ mod tests {
         let mut way_geoms = HashMap::new();
         way_geoms.insert(1, vec![coord(0.0, 0.0), coord(1.0, 0.0)]);
         let list = SegmentList::from_ways(&[], &[1], &way_geoms); // inner only
-        // Asking for an outer segment should return None
-        assert!(list.find_matching_unused(coord(0.0, 0.0), Role::Outer).is_none());
+                                                                  // Asking for an outer segment should return None
+        assert!(list
+            .find_matching_unused(coord(0.0, 0.0), Role::Outer)
+            .is_none());
         // Asking for an inner segment should return Some
-        assert!(list.find_matching_unused(coord(0.0, 0.0), Role::Inner).is_some());
+        assert!(list
+            .find_matching_unused(coord(0.0, 0.0), Role::Inner)
+            .is_some());
     }
 }

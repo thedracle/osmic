@@ -22,10 +22,7 @@ impl<T: Copy> MetalBuffer<T> {
             return Err(AccelError::BufferCreation("Zero-length buffer".into()));
         }
 
-        let buffer = device.new_buffer(
-            byte_len as u64,
-            MTLResourceOptions::StorageModeShared,
-        );
+        let buffer = device.new_buffer(byte_len as u64, MTLResourceOptions::StorageModeShared);
 
         Ok(Self {
             buffer,
@@ -36,7 +33,7 @@ impl<T: Copy> MetalBuffer<T> {
 
     /// Create a buffer initialized from a slice.
     pub fn from_slice(device: &Device, data: &[T]) -> AccelResult<Self> {
-        let byte_len = data.len() * std::mem::size_of::<T>();
+        let byte_len = std::mem::size_of_val(data);
         if byte_len == 0 {
             return Err(AccelError::BufferCreation("Zero-length buffer".into()));
         }

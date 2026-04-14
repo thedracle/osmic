@@ -62,7 +62,9 @@ mod tests {
     #[derive(Debug, PartialEq)]
     struct Counter(u32);
     impl Counter {
-        fn new(n: u32) -> Self { Self(n) }
+        fn new(n: u32) -> Self {
+            Self(n)
+        }
     }
 
     #[derive(Debug, PartialEq)]

@@ -107,8 +107,7 @@ impl Extractor {
         // Pass 2: Extract matching entities
         info!("Pass 2: Extracting matching entities...");
         let pass2_start = Instant::now();
-        let (entities, way_count, relation_count) =
-            self.pass2_extract(pbf_path, &node_store)?;
+        let (entities, way_count, relation_count) = self.pass2_extract(pbf_path, &node_store)?;
         let pass2_duration = pass2_start.elapsed();
         let matched_count = entities.len() as u64;
         info!(
@@ -135,11 +134,7 @@ impl Extractor {
     }
 
     /// Pass 1: Store all node locations in the mmap'd node store.
-    fn pass1_nodes(
-        &self,
-        pbf_path: &Path,
-        node_store: &RamNodeLocationStore,
-    ) -> OsmicResult<u64> {
+    fn pass1_nodes(&self, pbf_path: &Path, node_store: &RamNodeLocationStore) -> OsmicResult<u64> {
         let reader =
             ElementReader::from_path(pbf_path).map_err(|e| OsmicError::Pbf(e.to_string()))?;
 
@@ -220,19 +215,15 @@ impl Extractor {
                             if let Some(entity) =
                                 try_build_entity(&tags, filter, require_name, bbox, || {
                                     let refs: Vec<i64> = way.refs().collect();
-                                    let coords: Vec<LonLat> = refs
-                                        .iter()
-                                        .filter_map(|&id| node_store.get(id))
-                                        .collect();
+                                    let coords: Vec<LonLat> =
+                                        refs.iter().filter_map(|&id| node_store.get(id)).collect();
                                     let (lat, lon) = if coords.is_empty() {
                                         (None, None)
                                     } else {
-                                        let lat =
-                                            coords.iter().map(|c| c.lat).sum::<f64>()
-                                                / coords.len() as f64;
-                                        let lon =
-                                            coords.iter().map(|c| c.lon).sum::<f64>()
-                                                / coords.len() as f64;
+                                        let lat = coords.iter().map(|c| c.lat).sum::<f64>()
+                                            / coords.len() as f64;
+                                        let lon = coords.iter().map(|c| c.lon).sum::<f64>()
+                                            / coords.len() as f64;
                                         (Some(lat), Some(lon))
                                     };
                                     ("way", way.id(), lon, lat)

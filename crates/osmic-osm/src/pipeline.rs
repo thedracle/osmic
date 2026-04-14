@@ -149,11 +149,7 @@ impl PbfProcessor {
     ///
     /// Uses [`ElementReader::from_path`] which internally streams blobs
     /// via [`osmpbf::BlobReader`] — no in-memory PBF buffer required.
-    fn pass1_nodes(
-        &self,
-        pbf_path: &Path,
-        node_store: &dyn NodeLocationStore,
-    ) -> OsmicResult<u64> {
+    fn pass1_nodes(&self, pbf_path: &Path, node_store: &dyn NodeLocationStore) -> OsmicResult<u64> {
         let reader =
             ElementReader::from_path(pbf_path).map_err(|e| OsmicError::Pbf(e.to_string()))?;
 
@@ -208,10 +204,7 @@ impl PbfProcessor {
 
                             let mut tags = Tags::new();
                             for (k, v) in way.tags() {
-                                tags.push(
-                                    tag_store.intern_key(k),
-                                    tag_store.intern_value(v),
-                                );
+                                tags.push(tag_store.intern_key(k), tag_store.intern_value(v));
                             }
 
                             // Resolve way coordinates
@@ -236,8 +229,7 @@ impl PbfProcessor {
                                     for c in &coords {
                                         local_bbox.expand(c.x, c.y);
                                     }
-                                    let is_closed =
-                                        refs.len() >= 4 && refs.first() == refs.last();
+                                    let is_closed = refs.len() >= 4 && refs.first() == refs.last();
                                     let mut geometry = if is_closed && kind.is_area() {
                                         Geometry::Polygon(Polygon::new(
                                             LineString::new(coords),
@@ -261,14 +253,26 @@ impl PbfProcessor {
                         }
                         Element::Node(node) => {
                             process_poi_node(
-                                node.id(), node.lon(), node.lat(), node.tags(),
-                                tag_store, layers, &mut local_features, &mut local_bbox,
+                                node.id(),
+                                node.lon(),
+                                node.lat(),
+                                node.tags(),
+                                tag_store,
+                                layers,
+                                &mut local_features,
+                                &mut local_bbox,
                             );
                         }
                         Element::DenseNode(node) => {
                             process_poi_node(
-                                node.id(), node.lon(), node.lat(), node.tags(),
-                                tag_store, layers, &mut local_features, &mut local_bbox,
+                                node.id(),
+                                node.lon(),
+                                node.lat(),
+                                node.tags(),
+                                tag_store,
+                                layers,
+                                &mut local_features,
+                                &mut local_bbox,
                             );
                         }
                         Element::Relation(rel) => {
@@ -304,12 +308,26 @@ impl PbfProcessor {
                         }
                     }
 
-                    (local_features, local_way_geoms, local_relations,
-                     local_way_count, local_bbox, local_unresolved)
+                    (
+                        local_features,
+                        local_way_geoms,
+                        local_relations,
+                        local_way_count,
+                        local_bbox,
+                        local_unresolved,
+                    )
                 },
-                || (Vec::new(), Vec::new(), Vec::new(), 0u64, BBox::empty(), 0u64),
-                |(mut fa, mut ga, mut ra, ca, mut ba, ua),
-                 (fb, gb, rb, cb, bb, ub)| {
+                || {
+                    (
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                        0u64,
+                        BBox::empty(),
+                        0u64,
+                    )
+                },
+                |(mut fa, mut ga, mut ra, ca, mut ba, ua), (fb, gb, rb, cb, bb, ub)| {
                     fa.extend(fb);
                     ga.extend(gb);
                     ra.extend(rb);
@@ -320,7 +338,10 @@ impl PbfProcessor {
             .map_err(|e| OsmicError::Pbf(e.to_string()))?;
 
         if unresolved > 0 {
-            info!(unresolved, "Ways skipped (nodes outside extract or exceeding max_node_id)");
+            info!(
+                unresolved,
+                "Ways skipped (nodes outside extract or exceeding max_node_id)"
+            );
         }
 
         let mut features = features;
@@ -347,7 +368,11 @@ impl PbfProcessor {
                 .filter(|(id, _)| needed_ways.contains(id))
                 .collect();
 
-            info!(resolved = way_geom_map.len(), needed = needed_ways.len(), "Member ways resolved from cache");
+            info!(
+                resolved = way_geom_map.len(),
+                needed = needed_ways.len(),
+                "Member ways resolved from cache"
+            );
 
             let tag_store = &self.tag_store;
             for rel in &relations {
@@ -392,6 +417,8 @@ impl PbfProcessor {
 }
 
 /// Extract a tagged node as a POI point feature if it classifies.
+// All arguments are distinct positional inputs; a config struct would obscure the data flow.
+#[allow(clippy::too_many_arguments)]
 fn process_poi_node<'a>(
     id: i64,
     lon: f64,
@@ -428,7 +455,6 @@ struct RelationInfo {
     outer_way_ids: Vec<i64>,
     inner_way_ids: Vec<i64>,
 }
-
 
 impl Default for PbfProcessor {
     fn default() -> Self {

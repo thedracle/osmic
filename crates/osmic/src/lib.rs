@@ -5,25 +5,27 @@
 // osmic = "0.1"
 // ```
 
+pub use osmic_app as app;
 pub use osmic_core as core;
-pub use osmic_osm as osm;
 pub use osmic_geo as geo;
 pub use osmic_index as index;
-pub use osmic_app as app;
-pub use osmic_style as style;
-pub use osmic_tiles as tiles;
+pub use osmic_osm as osm;
 pub use osmic_render as render;
 pub use osmic_serve as serve;
+pub use osmic_style as style;
 pub use osmic_text as text;
+pub use osmic_tiles as tiles;
 
 /// Common types re-exported for convenience.
 pub mod prelude {
     // Core types
-    pub use osmic_core::{BBox, Color, Geometry, LonLat, OsmicError, OsmicResult, PackedCoord, TileCoord, Zoom};
+    pub use osmic_core::{
+        BBox, Color, Geometry, LonLat, OsmicError, OsmicResult, PackedCoord, TileCoord, Zoom,
+    };
 
     // OSM data model
-    pub use osmic_osm::{Feature, FeatureKind, PbfProcessor, TagStore, Tags};
     pub use osmic_osm::geojson::load_geojson;
+    pub use osmic_osm::{Feature, FeatureKind, PbfProcessor, TagStore, Tags};
 
     // Spatial index
     pub use osmic_index::{DenseNodeLocationStore, FeatureIndex};

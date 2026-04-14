@@ -307,11 +307,15 @@ mod tests {
                 let loc = store.get(id).unwrap_or_else(|| panic!("missing id {id}"));
                 assert!(
                     (loc.lon - expected_lon).abs() < CONCURRENCY_EPSILON,
-                    "id={id} lon={} expected={}", loc.lon, expected_lon
+                    "id={id} lon={} expected={}",
+                    loc.lon,
+                    expected_lon
                 );
                 assert!(
                     (loc.lat - expected_lat).abs() < CONCURRENCY_EPSILON,
-                    "id={id} lat={} expected={}", loc.lat, expected_lat
+                    "id={id} lat={} expected={}",
+                    loc.lat,
+                    expected_lat
                 );
             }
         }

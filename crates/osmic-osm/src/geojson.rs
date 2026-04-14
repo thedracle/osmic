@@ -29,8 +29,8 @@ pub fn load_geojson(path: &Path) -> OsmicResult<crate::pipeline::ProcessedData> 
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let json: serde_json::Value =
-        serde_json::from_str(&contents).map_err(|e| OsmicError::Other(format!("Invalid JSON: {e}")))?;
+    let json: serde_json::Value = serde_json::from_str(&contents)
+        .map_err(|e| OsmicError::Other(format!("Invalid JSON: {e}")))?;
 
     let tag_store = Arc::new(TagStore::new());
     let mut features = Vec::new();

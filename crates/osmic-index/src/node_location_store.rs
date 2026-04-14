@@ -146,8 +146,7 @@ mod tests {
 
     fn store_with_capacity(cap: i64) -> (DenseNodeLocationStore, tempfile::NamedTempFile) {
         let tmp = tempfile::NamedTempFile::new().expect("tempfile");
-        let store = DenseNodeLocationStore::create(tmp.path(), cap)
-            .expect("create store");
+        let store = DenseNodeLocationStore::create(tmp.path(), cap).expect("create store");
         (store, tmp)
     }
 
@@ -190,7 +189,7 @@ mod tests {
     #[test]
     fn node_id_at_capacity_returns_none_on_get() {
         let (store, _tmp) = store_with_capacity(9); // capacity = 10, valid ids 0..=9
-        // node_id 10 == capacity, which is out of bounds
+                                                    // node_id 10 == capacity, which is out of bounds
         store.set(10, 1.0, 2.0); // silently ignored
         assert!(store.get(10).is_none());
     }

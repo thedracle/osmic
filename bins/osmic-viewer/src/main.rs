@@ -142,8 +142,8 @@ fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<V
         "boundary" => 5,
         "railway" => 6,
         "highway" => 7,
-        "amenity" | "shop" | "office" | "craft" | "healthcare" | "tourism"
-        | "historic" | "place" => 9,
+        "amenity" | "shop" | "office" | "craft" | "healthcare" | "tourism" | "historic"
+        | "place" => 9,
         _ => 8,
     });
 
@@ -157,14 +157,12 @@ fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<V
                 .as_deref()
                 .is_some_and(|c| matches!(c, "lake" | "pond" | "reservoir" | "basin")));
 
-        let is_line = matches!(
-            feature.layer.as_str(),
-            "highway" | "railway" | "boundary"
-        ) || (feature.layer == "water"
-            && feature
-                .class
-                .as_deref()
-                .is_some_and(|c| matches!(c, "river" | "stream" | "canal")));
+        let is_line = matches!(feature.layer.as_str(), "highway" | "railway" | "boundary")
+            || (feature.layer == "water"
+                && feature
+                    .class
+                    .as_deref()
+                    .is_some_and(|c| matches!(c, "river" | "stream" | "canal")));
 
         let is_point = matches!(feature.geometry, osmic_core::Geometry::Point(_));
 
@@ -177,11 +175,18 @@ fn tessellate_features(features: &[DecodedFeature], view_degrees: f64) -> (Vec<V
             if let Some((color, px_width)) = line_style(&feature.layer, feature.class.as_deref()) {
                 // Convert pixel width to world-space degrees
                 let world_width = px_width * px_to_deg;
-                tessellate_stroke(&feature.geometry, &color, world_width, &mut vertices, &mut indices);
+                tessellate_stroke(
+                    &feature.geometry,
+                    &color,
+                    world_width,
+                    &mut vertices,
+                    &mut indices,
+                );
             }
         }
         if is_point {
-            if let Some((color, px_radius)) = point_style(&feature.layer, feature.class.as_deref()) {
+            if let Some((color, px_radius)) = point_style(&feature.layer, feature.class.as_deref())
+            {
                 let world_radius = px_radius * px_to_deg;
                 tessellate_point(
                     &feature.geometry,
@@ -338,7 +343,7 @@ fn tessellate_point(
 /// disc keyed by layer name. Returns None for non-POI layers.
 fn point_style(layer: &str, class: Option<&str>) -> Option<(Color, f32)> {
     let (hex, radius_px) = match layer {
-        "shop" => ("#ac39ac", 3.5),      // magenta — retail
+        "shop" => ("#ac39ac", 3.5), // magenta — retail
         "amenity" => match class.unwrap_or("") {
             "restaurant" | "cafe" | "bar" | "pub" | "fast_food" => ("#d96c22", 3.5),
             "hospital" | "clinic" | "pharmacy" | "doctors" => ("#c8372d", 3.5),
@@ -404,11 +409,7 @@ fn line_style(layer: &str, class: Option<&str>) -> Option<(Color, f32)> {
 
 // --- Tile loading ---
 
-fn load_tiles_blocking(
-    path: &std::path::Path,
-    bbox: &BBox,
-    zoom: u8,
-) -> Vec<DecodedFeature> {
+fn load_tiles_blocking(path: &std::path::Path, bbox: &BBox, zoom: u8) -> Vec<DecodedFeature> {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         let backend = pmtiles::MmapBackend::try_from(path).await.unwrap();
@@ -555,10 +556,8 @@ fn render_labels_to_rgba(
 
         // If label center is off-screen but feature is still visible, re-center
         let margin = 50.0f32;
-        let on_screen = px >= -margin
-            && py >= -margin
-            && px <= w as f32 + margin
-            && py <= h as f32 + margin;
+        let on_screen =
+            px >= -margin && py >= -margin && px <= w as f32 + margin && py <= h as f32 + margin;
 
         if !on_screen {
             // Check if the feature bbox overlaps the viewport
@@ -569,9 +568,10 @@ fn render_labels_to_rgba(
             let vis_lon = label
                 .lon
                 .clamp(bb.min_lon + bb.width() * 0.1, bb.max_lon - bb.width() * 0.1);
-            let vis_lat = label
-                .lat
-                .clamp(bb.min_lat + bb.height() * 0.1, bb.max_lat - bb.height() * 0.1);
+            let vis_lat = label.lat.clamp(
+                bb.min_lat + bb.height() * 0.1,
+                bb.max_lat - bb.height() * 0.1,
+            );
             px = ((vis_lon - bb.min_lon) / bb.width() * w) as f32;
             py = ((bb.max_lat - vis_lat) / bb.height() * h) as f32;
         }
@@ -639,8 +639,15 @@ fn render_labels_to_rgba(
                     continue;
                 }
                 draw_text_to_buf(
-                    &buffer, font_system, swash_cache, &mut pixels, width, height,
-                    offset_x + dx, offset_y + dy, halo,
+                    &buffer,
+                    font_system,
+                    swash_cache,
+                    &mut pixels,
+                    width,
+                    height,
+                    offset_x + dx,
+                    offset_y + dy,
+                    halo,
                 );
             }
         }
@@ -648,8 +655,15 @@ fn render_labels_to_rgba(
         // Text
         let [r, g, b, a] = label.color;
         draw_text_to_buf(
-            &buffer, font_system, swash_cache, &mut pixels, width, height,
-            offset_x, offset_y, cosmic_text::Color::rgba(r, g, b, a),
+            &buffer,
+            font_system,
+            swash_cache,
+            &mut pixels,
+            width,
+            height,
+            offset_x,
+            offset_y,
+            cosmic_text::Color::rgba(r, g, b, a),
         );
 
         placed += 1;
@@ -753,13 +767,22 @@ fn render_info_panel(
         };
 
         draw_text_to_buf(
-            &buffer, font_system, swash_cache, pixels, width, height,
-            text_x, text_y, text_color,
+            &buffer,
+            font_system,
+            swash_cache,
+            pixels,
+            width,
+            height,
+            text_x,
+            text_y,
+            text_color,
         );
         text_y += line_height as f32;
     }
 }
 
+// Binary utility: all args are independent rendering inputs; a struct would add ceremony with no benefit.
+#[allow(clippy::too_many_arguments)]
 fn draw_text_to_buf(
     buffer: &TextBuffer,
     font_system: &mut FontSystem,
@@ -785,15 +808,12 @@ fn draw_text_to_buf(
                     let sa = alpha as f32 / 255.0;
                     pixels[idx] =
                         ((c.r() as f32 * sa + pixels[idx] as f32 * (1.0 - sa)).min(255.0)) as u8;
-                    pixels[idx + 1] = ((c.g() as f32 * sa
-                        + pixels[idx + 1] as f32 * (1.0 - sa))
+                    pixels[idx + 1] = ((c.g() as f32 * sa + pixels[idx + 1] as f32 * (1.0 - sa))
                         .min(255.0)) as u8;
-                    pixels[idx + 2] = ((c.b() as f32 * sa
-                        + pixels[idx + 2] as f32 * (1.0 - sa))
+                    pixels[idx + 2] = ((c.b() as f32 * sa + pixels[idx + 2] as f32 * (1.0 - sa))
                         .min(255.0)) as u8;
-                    pixels[idx + 3] =
-                        ((sa + pixels[idx + 3] as f32 / 255.0 * (1.0 - sa)) * 255.0).min(255.0)
-                            as u8;
+                    pixels[idx + 3] = ((sa + pixels[idx + 3] as f32 / 255.0 * (1.0 - sa)) * 255.0)
+                        .min(255.0) as u8;
                 }
             }
         }
@@ -911,10 +931,8 @@ impl MapApp {
             let dlat = f.lat - click_lat;
             let dlon = (f.lon - click_lon) * cos_lat; // correct for latitude
             let dist = dlat * dlat + dlon * dlon;
-            if dist < search_radius * search_radius {
-                if best.is_none() || dist < best.unwrap().0 {
-                    best = Some((dist, i));
-                }
+            if dist < search_radius * search_radius && (best.is_none() || dist < best.unwrap().0) {
+                best = Some((dist, i));
             }
         }
 
@@ -931,19 +949,44 @@ impl MapApp {
             }
 
             // Build address
-            let num = feature.tags.iter().find(|(k, _)| k == "addr:housenumber").map(|(_, v)| v.as_str());
-            let street = feature.tags.iter().find(|(k, _)| k == "addr:street").map(|(_, v)| v.as_str());
-            let city = feature.tags.iter().find(|(k, _)| k == "addr:city").map(|(_, v)| v.as_str());
-            let postcode = feature.tags.iter().find(|(k, _)| k == "addr:postcode").map(|(_, v)| v.as_str());
+            let num = feature
+                .tags
+                .iter()
+                .find(|(k, _)| k == "addr:housenumber")
+                .map(|(_, v)| v.as_str());
+            let street = feature
+                .tags
+                .iter()
+                .find(|(k, _)| k == "addr:street")
+                .map(|(_, v)| v.as_str());
+            let city = feature
+                .tags
+                .iter()
+                .find(|(k, _)| k == "addr:city")
+                .map(|(_, v)| v.as_str());
+            let postcode = feature
+                .tags
+                .iter()
+                .find(|(k, _)| k == "addr:postcode")
+                .map(|(_, v)| v.as_str());
             let mut addr = String::new();
-            if let Some(n) = num { addr.push_str(n); addr.push(' '); }
-            if let Some(s) = street { addr.push_str(s); }
+            if let Some(n) = num {
+                addr.push_str(n);
+                addr.push(' ');
+            }
+            if let Some(s) = street {
+                addr.push_str(s);
+            }
             if let Some(c) = city {
-                if !addr.is_empty() { addr.push_str(", "); }
+                if !addr.is_empty() {
+                    addr.push_str(", ");
+                }
                 addr.push_str(c);
             }
             if let Some(p) = postcode {
-                if !addr.is_empty() { addr.push(' '); }
+                if !addr.is_empty() {
+                    addr.push(' ');
+                }
                 addr.push_str(p);
             }
             if !addr.is_empty() {
@@ -968,7 +1011,10 @@ impl MapApp {
                 }
             }
 
-            lines.push(("Location".into(), format!("{:.6}, {:.6}", feature.lat, feature.lon)));
+            lines.push((
+                "Location".into(),
+                format!("{:.6}, {:.6}", feature.lat, feature.lon),
+            ));
 
             // Cap lines to prevent panel overflow
             lines.truncate(12);
@@ -1035,10 +1081,23 @@ impl MapApp {
         // Collect clickable POI features (only named POIs to keep it manageable)
         self.click_features = features
             .iter()
-            .filter(|f| f.name.is_some() && matches!(
-                f.layer.as_str(),
-                "amenity" | "shop" | "tourism" | "office" | "healthcare" | "craft" | "historic" | "leisure" | "club" | "emergency" | "education"
-            ))
+            .filter(|f| {
+                f.name.is_some()
+                    && matches!(
+                        f.layer.as_str(),
+                        "amenity"
+                            | "shop"
+                            | "tourism"
+                            | "office"
+                            | "healthcare"
+                            | "craft"
+                            | "historic"
+                            | "leisure"
+                            | "club"
+                            | "emergency"
+                            | "education"
+                    )
+            })
             .map(|f| {
                 let bb = f.geometry.bbox();
                 let center = bb.center();
@@ -1052,7 +1111,10 @@ impl MapApp {
                 }
             })
             .collect();
-        info!(clickable = self.click_features.len(), "Click features indexed");
+        info!(
+            clickable = self.click_features.len(),
+            "Click features indexed"
+        );
 
         let (mut vertices, mut indices) = tessellate_features(&features, self.camera.zoom);
 
@@ -1070,7 +1132,11 @@ impl MapApp {
             indices.retain(|&i| (i as usize) < MAX_VERTICES);
             let trimmed = (indices.len() / 3) * 3;
             indices.truncate(trimmed);
-            info!(vertices = vertices.len(), indices = indices.len(), "Buffer capped");
+            info!(
+                vertices = vertices.len(),
+                indices = indices.len(),
+                "Buffer capped"
+            );
         }
 
         info!(
@@ -1087,20 +1153,20 @@ impl MapApp {
             return;
         }
 
-        gpu.vertex_buffer =
-            gpu.device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Vertex Buffer"),
-                    contents: bytemuck::cast_slice(&vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-        gpu.index_buffer =
-            gpu.device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Index Buffer"),
-                    contents: bytemuck::cast_slice(&indices),
-                    usage: wgpu::BufferUsages::INDEX,
-                });
+        gpu.vertex_buffer = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        gpu.index_buffer = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
         gpu.num_indices = indices.len() as u32;
         self.current_tile_zoom = tile_zoom;
         let aspect = gpu.config.width as f64 / gpu.config.height as f64;
@@ -1267,14 +1333,12 @@ impl ApplicationHandler for MapApp {
         }))
         .unwrap();
 
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("Map Device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                ..Default::default()
-            },
-        ))
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("Map Device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            ..Default::default()
+        }))
         .unwrap();
 
         let config = surface
@@ -1391,12 +1455,11 @@ impl ApplicationHandler for MapApp {
             ..Default::default()
         });
 
-        let label_uniform_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Label Uniform Buffer"),
-                contents: bytemuck::cast_slice(&[0.0f32, 0.0f32]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let label_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Label Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[0.0f32, 0.0f32]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
         let label_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -1551,7 +1614,9 @@ impl ApplicationHandler for MapApp {
                                 self.info_panel_dirty = false;
                             }
                         }
-                        let aspect = self.gpu.as_ref()
+                        let aspect = self
+                            .gpu
+                            .as_ref()
                             .map(|g| g.config.width as f64 / g.config.height as f64)
                             .unwrap_or(1.333);
                         let view = self.camera.view_bbox(aspect);

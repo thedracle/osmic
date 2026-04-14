@@ -87,11 +87,7 @@ fn build_feature(
 ) -> Option<Feature> {
     match element {
         OscElement::Node {
-            id,
-            lon,
-            lat,
-            tags,
-            ..
+            id, lon, lat, tags, ..
         } => {
             let interned_tags = intern_tags(tags, tag_store);
             let kind = classify(&interned_tags, tag_store, layers)?;

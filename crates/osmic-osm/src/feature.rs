@@ -770,15 +770,16 @@ impl FeatureKind {
                         | NaturalKind::Beach
                 )
                 | FeatureKind::Water(
-                    WaterKind::Lake
-                        | WaterKind::Pond
-                        | WaterKind::Reservoir
-                        | WaterKind::Basin
+                    WaterKind::Lake | WaterKind::Pond | WaterKind::Reservoir | WaterKind::Basin
                 )
                 | FeatureKind::Amenity(AmenityKind::Parking)
                 | FeatureKind::Boundary(_)
-                | FeatureKind::Historic(HistoricKind::Castle | HistoricKind::Fort | HistoricKind::Ruins)
-                | FeatureKind::Tourism(TourismKind::ThemePark | TourismKind::Zoo | TourismKind::CampSite)
+                | FeatureKind::Historic(
+                    HistoricKind::Castle | HistoricKind::Fort | HistoricKind::Ruins
+                )
+                | FeatureKind::Tourism(
+                    TourismKind::ThemePark | TourismKind::Zoo | TourismKind::CampSite
+                )
         )
     }
 
@@ -1250,7 +1251,6 @@ impl FeatureKind {
         }
     }
 
-
     /// Minimum zoom level at which this feature should appear in tiles.
     pub fn min_zoom(&self) -> u8 {
         match self {
@@ -1420,7 +1420,10 @@ mod tests {
 
     #[test]
     fn residential_min_zoom_value() {
-        assert_eq!(FeatureKind::Highway(HighwayKind::Residential).min_zoom(), 12);
+        assert_eq!(
+            FeatureKind::Highway(HighwayKind::Residential).min_zoom(),
+            12
+        );
     }
 
     // --- HighwayKind as_str / from_tag_value round-trip ---
@@ -1455,7 +1458,11 @@ mod tests {
         for k in kinds {
             let s = k.as_str();
             let back = HighwayKind::from_tag_value(s);
-            assert_eq!(back, k, "HighwayKind::{:?} round-trip failed via {:?}", k, s);
+            assert_eq!(
+                back, k,
+                "HighwayKind::{:?} round-trip failed via {:?}",
+                k, s
+            );
         }
     }
 
@@ -1490,7 +1497,11 @@ mod tests {
         for k in kinds {
             let s = k.as_str();
             let back = BuildingKind::from_tag_value(s);
-            assert_eq!(back, k, "BuildingKind::{:?} round-trip failed via {:?}", k, s);
+            assert_eq!(
+                back, k,
+                "BuildingKind::{:?} round-trip failed via {:?}",
+                k, s
+            );
         }
     }
 
@@ -1498,12 +1509,18 @@ mod tests {
 
     #[test]
     fn layer_name_highway() {
-        assert_eq!(FeatureKind::Highway(HighwayKind::Motorway).layer_name(), "highway");
+        assert_eq!(
+            FeatureKind::Highway(HighwayKind::Motorway).layer_name(),
+            "highway"
+        );
     }
 
     #[test]
     fn layer_name_building() {
-        assert_eq!(FeatureKind::Building(BuildingKind::Yes).layer_name(), "building");
+        assert_eq!(
+            FeatureKind::Building(BuildingKind::Yes).layer_name(),
+            "building"
+        );
     }
 
     #[test]
@@ -1513,32 +1530,50 @@ mod tests {
 
     #[test]
     fn layer_name_landuse() {
-        assert_eq!(FeatureKind::Landuse(LanduseKind::Forest).layer_name(), "landuse");
+        assert_eq!(
+            FeatureKind::Landuse(LanduseKind::Forest).layer_name(),
+            "landuse"
+        );
     }
 
     #[test]
     fn layer_name_natural() {
-        assert_eq!(FeatureKind::Natural(NaturalKind::Wood).layer_name(), "natural");
+        assert_eq!(
+            FeatureKind::Natural(NaturalKind::Wood).layer_name(),
+            "natural"
+        );
     }
 
     #[test]
     fn layer_name_railway() {
-        assert_eq!(FeatureKind::Railway(RailwayKind::Rail).layer_name(), "railway");
+        assert_eq!(
+            FeatureKind::Railway(RailwayKind::Rail).layer_name(),
+            "railway"
+        );
     }
 
     #[test]
     fn layer_name_amenity() {
-        assert_eq!(FeatureKind::Amenity(AmenityKind::Parking).layer_name(), "amenity");
+        assert_eq!(
+            FeatureKind::Amenity(AmenityKind::Parking).layer_name(),
+            "amenity"
+        );
     }
 
     #[test]
     fn layer_name_leisure() {
-        assert_eq!(FeatureKind::Leisure(LeisureKind::Park).layer_name(), "leisure");
+        assert_eq!(
+            FeatureKind::Leisure(LeisureKind::Park).layer_name(),
+            "leisure"
+        );
     }
 
     #[test]
     fn layer_name_boundary() {
-        assert_eq!(FeatureKind::Boundary(BoundaryKind::Administrative).layer_name(), "boundary");
+        assert_eq!(
+            FeatureKind::Boundary(BoundaryKind::Administrative).layer_name(),
+            "boundary"
+        );
     }
 
     #[test]

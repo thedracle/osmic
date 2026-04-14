@@ -181,9 +181,7 @@ pub fn clip_geometry(geom: &Geometry, bbox: &BBox, buffer_fraction: f64) -> Opti
                 Some(Geometry::Line(longest))
             }
         }
-        Geometry::Polygon(poly) => {
-            clip_polygon(poly, &buffered).map(Geometry::Polygon)
-        }
+        Geometry::Polygon(poly) => clip_polygon(poly, &buffered).map(Geometry::Polygon),
         Geometry::MultiPolygon(mp) => {
             let clipped: Vec<Polygon<f64>> = mp
                 .iter()
@@ -277,10 +275,7 @@ mod tests {
     #[test]
     fn test_clip_line_inside() {
         let bbox = BBox::new(-1.0, -1.0, 1.0, 1.0);
-        let line = LineString::new(vec![
-            Coord { x: -0.5, y: -0.5 },
-            Coord { x: 0.5, y: 0.5 },
-        ]);
+        let line = LineString::new(vec![Coord { x: -0.5, y: -0.5 }, Coord { x: 0.5, y: 0.5 }]);
         let result = clip_line(&line, &bbox);
         assert_eq!(result.len(), 1);
     }
@@ -288,10 +283,7 @@ mod tests {
     #[test]
     fn test_clip_line_outside() {
         let bbox = BBox::new(-1.0, -1.0, 1.0, 1.0);
-        let line = LineString::new(vec![
-            Coord { x: 2.0, y: 2.0 },
-            Coord { x: 3.0, y: 3.0 },
-        ]);
+        let line = LineString::new(vec![Coord { x: 2.0, y: 2.0 }, Coord { x: 3.0, y: 3.0 }]);
         let result = clip_line(&line, &bbox);
         assert!(result.is_empty());
     }

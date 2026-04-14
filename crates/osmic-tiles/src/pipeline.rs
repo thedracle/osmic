@@ -11,8 +11,8 @@ use osmic_core::bbox::BBox;
 use osmic_core::clip::clip_geometry;
 use osmic_core::error::OsmicResult;
 use osmic_core::tile::{TileCoord, Zoom};
-use osmic_geo::simplify::simplify_geometry;
 use osmic_geo::projection::bbox_to_tile_range;
+use osmic_geo::simplify::simplify_geometry;
 use osmic_osm::feature::Feature;
 use osmic_osm::tags::TagStore;
 
@@ -22,6 +22,13 @@ use osmic_osm::tags::Tags;
 
 use crate::coord::TileTransform;
 use crate::encode::{TileEncoder, TileFeature};
+
+#[cfg(feature = "native")]
+type PendingGpuBatch = (
+    osmic_accel::metal::accelerator::PendingBatch,
+    Vec<osmic_core::tile::TileCoord>,
+    Vec<Vec<(usize, usize)>>,
+);
 #[cfg(feature = "native")]
 use crate::sort::{tile_sort_key, ExternalFeatureSort};
 
@@ -130,11 +137,7 @@ impl<'a> TileGenerator<'a> {
         // the estimate underpredicted and the streaming path didn't fire.
         const BYTES_PER_FEATURE: usize = 512;
 
-        let estimated_mb = self
-            .features
-            .len()
-            .saturating_mul(BYTES_PER_FEATURE)
-            / (1024 * 1024);
+        let estimated_mb = self.features.len().saturating_mul(BYTES_PER_FEATURE) / (1024 * 1024);
 
         // Auto-adapt rayon batch size to feature count. With large inputs
         // (US-scale: 150M+ features), keeping the default 10 000-tile
@@ -269,14 +272,13 @@ impl<'a> TileGenerator<'a> {
         F: FnMut(TileCoord, &[u8]) -> OsmicResult<()>,
     {
         use osmic_accel::metal::flatten::WorkItem;
-        use osmic_accel::metal::accelerator::PendingBatch;
 
         let mut total_tiles = 0u64;
         let zoom_u8 = zoom;
 
         // Double-buffered: GPU clips batch N while CPU encodes batch N-1
         let batches: Vec<_> = tile_entries.chunks(self.config.batch_size).collect();
-        let mut pending_gpu: Option<(PendingBatch, Vec<TileCoord>, Vec<Vec<(usize, usize)>>)> = None;
+        let mut pending_gpu: Option<PendingGpuBatch> = None;
 
         for tile_batch in &batches {
             // Phase 1: CPU simplify all geometries in this batch
@@ -330,9 +332,8 @@ impl<'a> TileGenerator<'a> {
             // While GPU clips current batch, encode PREVIOUS batch on CPU
             if let Some((prev_pending, prev_coords, prev_tile_data)) = pending_gpu.take() {
                 let results = prev_pending.wait_and_read();
-                total_tiles += self.encode_gpu_results(
-                    &results, &prev_coords, &prev_tile_data, write_tile,
-                )?;
+                total_tiles +=
+                    self.encode_gpu_results(&results, &prev_coords, &prev_tile_data, write_tile)?;
             }
 
             if let Some(pb) = new_pending {
@@ -343,9 +344,8 @@ impl<'a> TileGenerator<'a> {
         // Drain last pending batch
         if let Some((prev_pending, prev_coords, prev_tile_data)) = pending_gpu.take() {
             let results = prev_pending.wait_and_read();
-            total_tiles += self.encode_gpu_results(
-                &results, &prev_coords, &prev_tile_data, write_tile,
-            )?;
+            total_tiles +=
+                self.encode_gpu_results(&results, &prev_coords, &prev_tile_data, write_tile)?;
         }
 
         Ok(total_tiles)
@@ -379,13 +379,18 @@ impl<'a> TileGenerator<'a> {
                     let feature = &self.features[feat_idx];
                     let layer_name = feature.kind.layer_name();
 
-                    if let Some(geom) = gpu_output_to_geometry(coords_f32, *vcount, feature.kind.is_area()) {
-                        layer_map.entry(layer_name).or_default().push(ClippedFeature {
-                            id: feature.id,
-                            kind: feature.kind,
-                            geometry: geom,
-                            tags: &feature.tags,
-                        });
+                    if let Some(geom) =
+                        gpu_output_to_geometry(coords_f32, *vcount, feature.kind.is_area())
+                    {
+                        layer_map
+                            .entry(layer_name)
+                            .or_default()
+                            .push(ClippedFeature {
+                                id: feature.id,
+                                kind: feature.kind,
+                                geometry: geom,
+                                tags: &feature.tags,
+                            });
                     }
                 }
             }
@@ -397,16 +402,16 @@ impl<'a> TileGenerator<'a> {
             let layer_entries: Vec<(&str, Vec<&dyn TileFeature>)> = layer_map
                 .iter()
                 .map(|(name, features)| {
-                    let refs: Vec<&dyn TileFeature> = features.iter().map(|f| f as &dyn TileFeature).collect();
+                    let refs: Vec<&dyn TileFeature> =
+                        features.iter().map(|f| f as &dyn TileFeature).collect();
                     (*name, refs)
                 })
                 .collect();
 
-            if let Some(bytes) = self.encoder.encode_projected(
-                self.config.extent,
-                &layer_entries,
-                self.tag_store,
-            ) {
+            if let Some(bytes) =
+                self.encoder
+                    .encode_projected(self.config.extent, &layer_entries, self.tag_store)
+            {
                 write_tile(coord, &bytes)?;
                 count += 1;
             }
@@ -520,9 +525,9 @@ impl<'a> TileGenerator<'a> {
             }
 
             // ── Phase 2: merge-sort and group by tile ─────────────────────────
-            let sorted = sorter.finish().map_err(|e| {
-                OsmicError::Tile(format!("External sort finish failed: {e}"))
-            })?;
+            let sorted = sorter
+                .finish()
+                .map_err(|e| OsmicError::Tile(format!("External sort finish failed: {e}")))?;
 
             // Decode sort key back to (x, y): key layout is zoom<<48 | x<<24 | y
             let decode_xy = |key: u64| -> (u32, u32) {
@@ -585,11 +590,7 @@ impl<'a> TileGenerator<'a> {
     ///
     /// Clips all feature geometries to the tile bbox (with 5% buffer)
     /// before encoding to prevent "geometry exceeds extent" issues.
-    fn generate_single_tile(
-        &self,
-        coord: TileCoord,
-        feature_indices: &[usize],
-    ) -> Option<Vec<u8>> {
+    fn generate_single_tile(&self, coord: TileCoord, feature_indices: &[usize]) -> Option<Vec<u8>> {
         let transform = TileTransform::new(&coord, self.config.extent);
         let tile_bbox = coord.bbox();
 
@@ -605,11 +606,11 @@ impl<'a> TileGenerator<'a> {
         // future improvement would sort by an importance score (kind
         // priority + geometry area) before truncating.
         let max_per_tile = match coord.z.0 {
-            0..=3  => 5_000,    // continent-level: sparse overview
-            4..=6  => 20_000,   // country-level: major roads + large areas
-            7..=9  => 60_000,   // region-level: detailed road network
+            0..=3 => 5_000,     // continent-level: sparse overview
+            4..=6 => 20_000,    // country-level: major roads + large areas
+            7..=9 => 60_000,    // region-level: detailed road network
             10..=12 => 150_000, // metro-level: full detail
-            _     => 500_000,   // city / block level: cap relaxed
+            _ => 500_000,       // city / block level: cap relaxed
         };
         let use_indices = if feature_indices.len() > max_per_tile {
             &feature_indices[..max_per_tile]
@@ -627,12 +628,15 @@ impl<'a> TileGenerator<'a> {
             // Clip to tile bbox with 5% buffer for anti-aliasing
             if let Some(clipped_geom) = clip_geometry(&simplified, &tile_bbox, 0.05) {
                 let layer_name = feature.kind.layer_name();
-                layer_map.entry(layer_name).or_default().push(ClippedFeature {
-                    id: feature.id,
-                    kind: feature.kind,
-                    geometry: clipped_geom,
-                    tags: &feature.tags,
-                });
+                layer_map
+                    .entry(layer_name)
+                    .or_default()
+                    .push(ClippedFeature {
+                        id: feature.id,
+                        kind: feature.kind,
+                        geometry: clipped_geom,
+                        tags: &feature.tags,
+                    });
             }
         }
 
@@ -640,7 +644,8 @@ impl<'a> TileGenerator<'a> {
         let layer_entries: Vec<(&str, Vec<&dyn TileFeature>)> = layer_map
             .iter()
             .map(|(name, features)| {
-                let refs: Vec<&dyn TileFeature> = features.iter().map(|f| f as &dyn TileFeature).collect();
+                let refs: Vec<&dyn TileFeature> =
+                    features.iter().map(|f| f as &dyn TileFeature).collect();
                 (*name, refs)
             })
             .collect();
@@ -687,6 +692,8 @@ fn gpu_output_to_geometry(
             vec![],
         )))
     } else {
-        Some(osmic_core::geometry::Geometry::Line(LineString::new(coords)))
+        Some(osmic_core::geometry::Geometry::Line(LineString::new(
+            coords,
+        )))
     }
 }

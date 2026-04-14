@@ -99,10 +99,12 @@ impl TextShaper {
                                     / out_a) as u8;
                                 pixels[idx + 1] = ((color.g() as f32 * src_a
                                     + pixels[idx + 1] as f32 * dst_a * (1.0 - src_a))
-                                    / out_a) as u8;
+                                    / out_a)
+                                    as u8;
                                 pixels[idx + 2] = ((color.b() as f32 * src_a
                                     + pixels[idx + 2] as f32 * dst_a * (1.0 - src_a))
-                                    / out_a) as u8;
+                                    / out_a)
+                                    as u8;
                                 pixels[idx + 3] = (out_a * 255.0) as u8;
                             }
                         }
@@ -118,5 +120,42 @@ impl TextShaper {
 impl Default for TextShaper {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn measure_nonempty_text_returns_positive_dimensions() {
+        let mut shaper = TextShaper::new();
+        let (w, h) = shaper.measure("hello", 16.0);
+        assert!(w > 0.0, "width should be positive for non-empty text");
+        assert!(h > 0.0, "height should be positive for non-empty text");
+    }
+
+    #[test]
+    fn measure_longer_text_is_wider_than_shorter() {
+        let mut shaper = TextShaper::new();
+        let (w_short, _) = shaper.measure("a", 16.0);
+        let (w_long, _) = shaper.measure("aaaaaaaaaa", 16.0);
+        assert!(w_long > w_short);
+    }
+
+    #[test]
+    fn rasterize_produces_rgba_buffer_of_declared_size() {
+        let mut shaper = TextShaper::new();
+        let (w, h, pixels) =
+            shaper.rasterize("hi", 16.0, osmic_core::Color::rgba(1.0, 1.0, 1.0, 1.0));
+        assert!(
+            w > 0 && h > 0,
+            "rasterized text should have positive dimensions"
+        );
+        assert_eq!(
+            pixels.len(),
+            (w as usize) * (h as usize) * 4,
+            "pixel buffer length must match w * h * RGBA"
+        );
     }
 }

@@ -1,7 +1,15 @@
 [package]
 name = "osmic-cli"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories = ["command-line-utilities", "science::geo"]
+keywords = ["osm", "pbf", "tiles", "cli", "map"]
+readme.workspace = true
 description = "CLI for tile generation, PBF inspection, render-to-image"
 
 [features]
@@ -14,8 +22,8 @@ osmic-osm = { workspace = true }
 osmic-index = { workspace = true }
 osmic-extract = { workspace = true }
 osmic-tiles = { workspace = true }
-osmic-repl = { path = "../../crates/osmic-repl" }
-osmic-serve = { path = "../../crates/osmic-serve" }
+osmic-repl = { workspace = true }
+osmic-serve = { workspace = true }
 osmic-style = { workspace = true }
 reqwest = { version = "0.12", features = ["blocking"] }
 clap = { workspace = true }

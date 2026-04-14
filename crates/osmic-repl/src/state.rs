@@ -44,7 +44,9 @@ impl ReplicationState {
         format!(
             "{}/{:03}/{:03}/{:03}.osc.gz",
             self.base_url.trim_end_matches('/'),
-            a, b, c
+            a,
+            b,
+            c
         )
     }
 

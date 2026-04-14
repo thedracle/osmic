@@ -18,7 +18,7 @@ impl Style {
     }
 }
 
-/// Generate a default MapLibre GL JS style for OMM tiles.
+/// Generate a default MapLibre GL JS style for osmic tiles.
 ///
 /// `source_url` should be the path/URL to the PMTiles archive,
 /// e.g., "pmtiles://tiles.pmtiles" or "http://localhost:3000/{z}/{x}/{y}.mvt"
@@ -519,11 +519,54 @@ pub fn default_style_json(source_url: &str) -> Style {
 
     Style {
         version: 8,
-        name: "OMM Default".into(),
-        glyphs: Some(
-            "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf".into(),
-        ),
+        name: "Osmic Default".into(),
+        glyphs: Some("https://fonts.openmaptiles.org/{fontstack}/{range}.pbf".into()),
         sources: source,
         layers,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_style_pmtiles_source_uses_url_key() {
+        let style = default_style_json("pmtiles://tiles.pmtiles");
+        assert_eq!(style.version, 8);
+        assert_eq!(style.name, "Osmic Default");
+        let osmic_source = &style.sources["osmic"];
+        assert_eq!(osmic_source["type"], "vector");
+        assert_eq!(osmic_source["url"], "pmtiles://tiles.pmtiles");
+        assert!(osmic_source.get("tiles").is_none());
+    }
+
+    #[test]
+    fn default_style_http_source_uses_tiles_array() {
+        let url = "http://localhost:3000/{z}/{x}/{y}.mvt";
+        let style = default_style_json(url);
+        let osmic_source = &style.sources["osmic"];
+        assert_eq!(osmic_source["type"], "vector");
+        assert_eq!(osmic_source["tiles"][0], url);
+        assert!(osmic_source.get("url").is_none());
+    }
+
+    #[test]
+    fn default_style_has_background_and_nonempty_layers() {
+        let style = default_style_json("pmtiles://x.pmtiles");
+        assert!(!style.layers.is_empty());
+        assert_eq!(style.layers[0]["id"], "background");
+        assert_eq!(style.layers[0]["type"], "background");
+    }
+
+    #[test]
+    fn style_roundtrips_through_json() {
+        let style = default_style_json("pmtiles://x.pmtiles");
+        let json = style.to_json();
+        assert!(!json.is_empty());
+        let parsed: Style = serde_json::from_str(&json).expect("roundtrip");
+        assert_eq!(parsed.version, style.version);
+        assert_eq!(parsed.name, style.name);
+        assert_eq!(parsed.layers.len(), style.layers.len());
     }
 }

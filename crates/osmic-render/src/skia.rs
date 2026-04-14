@@ -107,6 +107,8 @@ impl RenderBackend for SkiaBackend {
 }
 
 impl SkiaBackend {
+    // All parameters are independent rendering inputs; a struct would add boilerplate for a private method.
+    #[allow(clippy::too_many_arguments)]
     fn render_label(
         &mut self,
         position: &[f32; 2],
@@ -125,13 +127,7 @@ impl SkiaBackend {
         let metrics = Metrics::new(scaled_size, scaled_size * 1.2);
         let mut buffer = TextBuffer::new(&mut self.font_system, metrics);
         let attrs = Attrs::new().family(Family::SansSerif);
-        buffer.set_text(
-            &mut self.font_system,
-            text,
-            &attrs,
-            Shaping::Advanced,
-            None,
-        );
+        buffer.set_text(&mut self.font_system, text, &attrs, Shaping::Advanced, None);
         buffer.shape_until_scroll(&mut self.font_system, false);
 
         let px = position[0] * self.config.pixel_ratio;
@@ -190,8 +186,7 @@ impl SkiaBackend {
                         let px = (x + dx) + offset_x as i32;
                         let py = (y + dy) + offset_y as i32;
                         if px >= 0 && py >= 0 && (px as u32) < pw && (py as u32) < ph {
-                            let idx =
-                                ((py as u32 * pw + px as u32) * 4) as usize;
+                            let idx = ((py as u32 * pw + px as u32) * 4) as usize;
                             let data = self.pixmap.data_mut();
                             let src_a = alpha as f32 / 255.0;
                             let dst_a = data[idx + 3] as f32 / 255.0;
@@ -200,8 +195,7 @@ impl SkiaBackend {
                                 // Premultiplied alpha blending
                                 data[idx] = ((drawn_color.r() as f32 * src_a
                                     + data[idx] as f32 * (1.0 - src_a))
-                                    .min(255.0))
-                                    as u8;
+                                    .min(255.0)) as u8;
                                 data[idx + 1] = ((drawn_color.g() as f32 * src_a
                                     + data[idx + 1] as f32 * (1.0 - src_a))
                                     .min(255.0))
@@ -295,4 +289,53 @@ impl SkiaBackend {
 
 fn to_skia_color(c: &Color) -> SkiaColor {
     SkiaColor::from_rgba(c.r, c.g, c.b, c.a).unwrap_or(SkiaColor::BLACK)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn init_with_default_config_succeeds() {
+        let config = RenderConfig::default();
+        let backend = SkiaBackend::init(&config).expect("init should succeed");
+        let pixels = backend.read_pixels().expect("read_pixels on fresh pixmap");
+        assert_eq!(
+            pixels.len(),
+            (config.width * config.height * 4) as usize,
+            "pixel buffer should match width * height * RGBA"
+        );
+    }
+
+    #[test]
+    fn init_small_custom_dimensions() {
+        let config = RenderConfig {
+            width: 32,
+            height: 16,
+            background: Color::rgba(0.0, 0.0, 0.0, 1.0),
+            pixel_ratio: 1.0,
+        };
+        let backend = SkiaBackend::init(&config).expect("small init ok");
+        let pixels = backend.read_pixels().unwrap();
+        assert_eq!(pixels.len(), 32 * 16 * 4);
+    }
+
+    #[test]
+    fn render_empty_scene_clears_to_background() {
+        let config = RenderConfig {
+            width: 4,
+            height: 4,
+            background: Color::rgba(1.0, 0.0, 0.0, 1.0),
+            pixel_ratio: 1.0,
+        };
+        let mut backend = SkiaBackend::init(&config).unwrap();
+        let scene = SceneGraph {
+            background: Color::rgba(1.0, 0.0, 0.0, 1.0),
+            layers: vec![],
+        };
+        backend.render(&scene).expect("render empty scene");
+        let pixels = backend.read_pixels().unwrap();
+        // First pixel's red channel should be saturated.
+        assert_eq!(pixels[0], 255, "background red channel should be 255");
+    }
 }

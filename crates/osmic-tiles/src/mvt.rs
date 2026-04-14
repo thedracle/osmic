@@ -66,13 +66,11 @@ pub fn encode_geometry(
 
 /// Encode a geometry that is ALREADY in tile-local projected coordinates.
 /// Skips the lon_lat_to_tile projection — coordinates are used as-is.
-pub fn encode_geometry_projected(
-    geometry: &Geometry,
-) -> Result<GeomData, mvt::Error> {
+pub fn encode_geometry_projected(geometry: &Geometry) -> Result<GeomData, mvt::Error> {
     match geometry {
-        Geometry::Point(p) => {
-            GeomEncoder::new(GeomType::Point).point(p.x(), p.y())?.encode()
-        }
+        Geometry::Point(p) => GeomEncoder::new(GeomType::Point)
+            .point(p.x(), p.y())?
+            .encode(),
         Geometry::Line(ls) => {
             let mut encoder = GeomEncoder::new(GeomType::Linestring);
             for coord in ls.coords() {
@@ -280,7 +278,7 @@ pub fn build_tile_clipped(
 /// MVT tile encoder.
 ///
 /// By default, only a curated whitelist of tag keys is written into each
-/// MVT feature (see [`EXTRA_TAG_KEYS`]). Set `include_all_tags = true` to
+/// MVT feature (see `EXTRA_TAG_KEYS`). Set `include_all_tags = true` to
 /// emit every OSM tag present on the feature — useful for downstream
 /// consumers that want to slice by arbitrary attributes, at the cost of
 /// larger tiles (typically 3-5× on POI-dense areas).
@@ -292,12 +290,16 @@ pub struct MvtEncoder {
 impl MvtEncoder {
     /// Create an encoder that writes the curated whitelist of tags only.
     pub fn new() -> Self {
-        Self { include_all_tags: false }
+        Self {
+            include_all_tags: false,
+        }
     }
 
     /// Create an encoder that emits every OSM tag on each feature.
     pub fn with_all_tags() -> Self {
-        Self { include_all_tags: true }
+        Self {
+            include_all_tags: true,
+        }
     }
 }
 
@@ -324,12 +326,7 @@ impl TileEncoder for MvtEncoder {
         layer_features: &[(&str, Vec<&dyn TileFeature>)],
         tag_store: &TagStore,
     ) -> Option<Vec<u8>> {
-        build_tile_projected(
-            extent,
-            layer_features,
-            tag_store,
-            self.include_all_tags,
-        )
+        build_tile_projected(extent, layer_features, tag_store, self.include_all_tags)
     }
 
     fn format(&self) -> TileFormat {

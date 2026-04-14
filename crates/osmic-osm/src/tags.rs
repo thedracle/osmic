@@ -260,10 +260,7 @@ impl Tags {
 
     /// Look up a tag value by key. Linear scan (fast for small N).
     pub fn get(&self, key: TagKey) -> Option<TagValue> {
-        self.inner
-            .iter()
-            .find(|(k, _)| *k == key)
-            .map(|(_, v)| *v)
+        self.inner.iter().find(|(k, _)| *k == key).map(|(_, v)| *v)
     }
 
     pub fn contains(&self, key: TagKey) -> bool {

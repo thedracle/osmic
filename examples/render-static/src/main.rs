@@ -66,7 +66,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build scene graph
     info!("Building scene graph...");
-    let scene = build_scene(&features, &render_bbox, args.width as f32, args.height as f32);
+    let scene = build_scene(
+        &features,
+        &render_bbox,
+        args.width as f32,
+        args.height as f32,
+    );
     info!(
         "Scene: {} layers, {} total features",
         scene.layers.len(),
@@ -150,12 +155,7 @@ fn parse_bbox(s: &str) -> Result<BBox, String> {
     Ok(BBox::new(parts[0], parts[1], parts[2], parts[3]))
 }
 
-fn build_scene(
-    features: &[DecodedFeature],
-    bbox: &BBox,
-    width: f32,
-    height: f32,
-) -> SceneGraph {
+fn build_scene(features: &[DecodedFeature], bbox: &BBox, width: f32, height: f32) -> SceneGraph {
     let bg = Color::from_hex("#f8f4f0").unwrap();
     let mut scene = SceneGraph::new(bg);
 
@@ -192,14 +192,12 @@ fn build_scene(
                 .as_deref()
                 .is_some_and(|c| matches!(c, "lake" | "pond" | "reservoir" | "basin")));
 
-        let is_line = matches!(
-            feature.layer.as_str(),
-            "highway" | "railway" | "boundary"
-        ) || (feature.layer == "water"
-            && feature
-                .class
-                .as_deref()
-                .is_some_and(|c| matches!(c, "river" | "stream" | "canal")));
+        let is_line = matches!(feature.layer.as_str(), "highway" | "railway" | "boundary")
+            || (feature.layer == "water"
+                && feature
+                    .class
+                    .as_deref()
+                    .is_some_and(|c| matches!(c, "river" | "stream" | "canal")));
 
         if is_area {
             if let Some(color) = area_color(&feature.layer, feature.class.as_deref()) {
@@ -300,13 +298,25 @@ fn geometry_to_fill(
     match geom {
         Geometry::Polygon(poly) => {
             let mut rings = vec![];
-            let ext: Vec<[f32; 2]> = poly.exterior().coords().map(|c| to_pixel(c.x, c.y)).collect();
-            if ext.len() >= 3 { rings.push(ext); }
+            let ext: Vec<[f32; 2]> = poly
+                .exterior()
+                .coords()
+                .map(|c| to_pixel(c.x, c.y))
+                .collect();
+            if ext.len() >= 3 {
+                rings.push(ext);
+            }
             for hole in poly.interiors() {
                 let h: Vec<[f32; 2]> = hole.coords().map(|c| to_pixel(c.x, c.y)).collect();
-                if h.len() >= 3 { rings.push(h); }
+                if h.len() >= 3 {
+                    rings.push(h);
+                }
             }
-            if rings.is_empty() { None } else { Some(rings) }
+            if rings.is_empty() {
+                None
+            } else {
+                Some(rings)
+            }
         }
         _ => None,
     }
@@ -319,7 +329,11 @@ fn geometry_to_stroke(
     match geom {
         Geometry::Line(ls) => {
             let coords: Vec<[f32; 2]> = ls.coords().map(|c| to_pixel(c.x, c.y)).collect();
-            if coords.len() >= 2 { Some(coords) } else { None }
+            if coords.len() >= 2 {
+                Some(coords)
+            } else {
+                None
+            }
         }
         _ => None,
     }

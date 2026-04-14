@@ -57,24 +57,25 @@ fn main() {
 
         let output = Command::new("xcrun")
             .args([
-                "-sdk", "macosx", "metal",
+                "-sdk",
+                "macosx",
+                "metal",
                 "-std=metal3.1",
                 "-O3",
                 "-ffast-math",
-                "-target", "air64-apple-macos14.0",
-                "-c", metal_file.to_str().unwrap(),
-                "-o", air_file.to_str().unwrap(),
+                "-target",
+                "air64-apple-macos14.0",
+                "-c",
+                metal_file.to_str().unwrap(),
+                "-o",
+                air_file.to_str().unwrap(),
             ])
             .output()
             .expect("Failed to run Metal compiler");
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            panic!(
-                "Failed to compile {}\n{}",
-                metal_file.display(),
-                stderr
-            );
+            panic!("Failed to compile {}\n{}", metal_file.display(), stderr);
         }
 
         air_files.push(air_file);

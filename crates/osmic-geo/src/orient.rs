@@ -161,7 +161,10 @@ mod tests {
         let mut mp = MultiPolygon::new(vec![cw1, cw2]);
         orient_multipolygon(&mut mp);
         for poly in &mp.0 {
-            assert!(poly.exterior().is_ccw(), "each polygon's exterior must end up CCW");
+            assert!(
+                poly.exterior().is_ccw(),
+                "each polygon's exterior must end up CCW"
+            );
         }
     }
 
@@ -169,10 +172,8 @@ mod tests {
     /// must not panic.
     #[test]
     fn orient_polygon_degenerate_is_noop() {
-        let degenerate = LineString::from(vec![
-            coord! { x: 0.0, y: 0.0 },
-            coord! { x: 1.0, y: 1.0 },
-        ]);
+        let degenerate =
+            LineString::from(vec![coord! { x: 0.0, y: 0.0 }, coord! { x: 1.0, y: 1.0 }]);
         let mut poly = Polygon::new(degenerate, vec![]);
         // Must not panic. We don't assert anything about the result — the
         // winding order is undefined for <4 coords.

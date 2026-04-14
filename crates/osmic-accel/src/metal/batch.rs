@@ -95,7 +95,10 @@ impl GpuBatch {
     }
 
     /// Dispatch clip kernel asynchronously — returns command buffer for later wait.
-    pub fn dispatch_clip_async(&self, ctx: &Arc<MetalContext>) -> AccelResult<metal::CommandBuffer> {
+    pub fn dispatch_clip_async(
+        &self,
+        ctx: &Arc<MetalContext>,
+    ) -> AccelResult<metal::CommandBuffer> {
         let command_buffer = ctx.command_queue().new_command_buffer();
         let encoder = command_buffer.new_compute_command_encoder();
 

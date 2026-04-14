@@ -26,7 +26,11 @@ impl Color {
                 let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
                 let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
                 let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
-                Some(Self::rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0))
+                Some(Self::rgb(
+                    r as f32 / 255.0,
+                    g as f32 / 255.0,
+                    b as f32 / 255.0,
+                ))
             }
             4 => {
                 let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
@@ -44,7 +48,11 @@ impl Color {
                 let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
                 let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
                 let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-                Some(Self::rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0))
+                Some(Self::rgb(
+                    r as f32 / 255.0,
+                    g as f32 / 255.0,
+                    b as f32 / 255.0,
+                ))
             }
             8 => {
                 let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
@@ -157,7 +165,10 @@ mod tests {
     fn from_hex_invalid_length_returns_none() {
         assert!(Color::from_hex("#ff").is_none(), "2-char hex must fail");
         assert!(Color::from_hex("#fffff").is_none(), "5-char hex must fail");
-        assert!(Color::from_hex("#fffffff").is_none(), "7-char hex must fail");
+        assert!(
+            Color::from_hex("#fffffff").is_none(),
+            "7-char hex must fail"
+        );
         assert!(Color::from_hex("").is_none(), "empty string must fail");
     }
 

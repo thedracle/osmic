@@ -15,8 +15,11 @@ pub fn write_csv(entities: &[Entity], path: &Path) -> OsmicResult<()> {
     let mut writer = BufWriter::new(file);
 
     // Header
-    writeln!(writer, "name,type,lat,lon,address,phone,website,operator,tags")
-        .map_err(OsmicError::Io)?;
+    writeln!(
+        writer,
+        "name,type,lat,lon,address,phone,website,operator,tags"
+    )
+    .map_err(OsmicError::Io)?;
 
     for e in entities {
         writeln!(
@@ -41,8 +44,8 @@ pub fn write_csv(entities: &[Entity], path: &Path) -> OsmicResult<()> {
 
 /// Write entities to a JSON file.
 pub fn write_json(entities: &[Entity], path: &Path) -> OsmicResult<()> {
-    let json = serde_json::to_string_pretty(entities)
-        .map_err(|e| OsmicError::Other(e.to_string()))?;
+    let json =
+        serde_json::to_string_pretty(entities).map_err(|e| OsmicError::Other(e.to_string()))?;
     std::fs::write(path, json).map_err(OsmicError::Io)
 }
 
@@ -96,8 +99,8 @@ pub fn write_geojson(entities: &[Entity], path: &Path) -> OsmicResult<()> {
         "features": features
     });
 
-    let json = serde_json::to_string_pretty(&collection)
-        .map_err(|e| OsmicError::Other(e.to_string()))?;
+    let json =
+        serde_json::to_string_pretty(&collection).map_err(|e| OsmicError::Other(e.to_string()))?;
     std::fs::write(path, json).map_err(OsmicError::Io)
 }
 

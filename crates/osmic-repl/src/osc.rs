@@ -284,7 +284,13 @@ fn finalize_element(
     elem_members: &mut Vec<RelMember>,
 ) -> Option<OscElement> {
     match std::mem::replace(parsing, Parsing::None) {
-        Parsing::Node { id, lon, lat, version, visible } => Some(OscElement::Node {
+        Parsing::Node {
+            id,
+            lon,
+            lat,
+            version,
+            visible,
+        } => Some(OscElement::Node {
             id,
             lon,
             lat,
@@ -292,14 +298,22 @@ fn finalize_element(
             visible,
             tags: std::mem::take(elem_tags),
         }),
-        Parsing::Way { id, version, visible } => Some(OscElement::Way {
+        Parsing::Way {
+            id,
+            version,
+            visible,
+        } => Some(OscElement::Way {
             id,
             version,
             visible,
             node_refs: std::mem::take(elem_nd_refs),
             tags: std::mem::take(elem_tags),
         }),
-        Parsing::Relation { id, version, visible } => Some(OscElement::Relation {
+        Parsing::Relation {
+            id,
+            version,
+            visible,
+        } => Some(OscElement::Relation {
             id,
             version,
             visible,

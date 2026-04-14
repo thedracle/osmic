@@ -153,7 +153,11 @@ mod tests {
         let kids = tile.children();
         for child in &kids {
             let back = child.parent().expect("child must have parent");
-            assert_eq!(back, tile, "child {:?} did not round-trip to parent {:?}", child, tile);
+            assert_eq!(
+                back, tile,
+                "child {:?} did not round-trip to parent {:?}",
+                child, tile
+            );
         }
     }
 

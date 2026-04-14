@@ -11,9 +11,7 @@ pub async fn get_tile(
 ) -> impl IntoResponse {
     let coord = match pmtiles::TileCoord::new(z, x, y) {
         Ok(c) => c,
-        Err(_) => {
-            return (StatusCode::BAD_REQUEST, "Invalid tile coordinates").into_response()
-        }
+        Err(_) => return (StatusCode::BAD_REQUEST, "Invalid tile coordinates").into_response(),
     };
 
     match state.reader.get_tile_decompressed(coord).await {
@@ -58,7 +56,10 @@ pub async fn get_metadata(State(state): State<SharedState>) -> impl IntoResponse
 /// Serve the MapLibre-compatible style JSON (no-cache to avoid stale URLs).
 pub async fn get_style(State(state): State<SharedState>) -> impl IntoResponse {
     let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     (StatusCode::OK, headers, state.style_json.clone())
 }
@@ -73,8 +74,12 @@ pub async fn get_viewer(State(state): State<SharedState>) -> impl IntoResponse {
 
     // Center of the PMTiles bounding box. Fall back to the continental
     // US centroid if the bbox is degenerate (e.g. an empty archive).
-    let (min_lon, min_lat, max_lon, max_lat) =
-        (h.min_longitude, h.min_latitude, h.max_longitude, h.max_latitude);
+    let (min_lon, min_lat, max_lon, max_lat) = (
+        h.min_longitude,
+        h.min_latitude,
+        h.max_longitude,
+        h.max_latitude,
+    );
     let (center_lon, center_lat) = if max_lon > min_lon && max_lat > min_lat {
         ((min_lon + max_lon) / 2.0, (min_lat + max_lat) / 2.0)
     } else {

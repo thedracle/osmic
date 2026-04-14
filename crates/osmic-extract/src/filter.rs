@@ -64,19 +64,15 @@ impl TagFilter {
     }
 
     /// Invert this filter.
-    pub fn not(filter: TagFilter) -> Self {
+    pub fn negate(filter: TagFilter) -> Self {
         TagFilter::Not(Box::new(filter))
     }
 
     /// Test whether a set of tags matches this filter.
     pub fn matches(&self, tags: &[(String, String)]) -> bool {
         match self {
-            TagFilter::Tag { key, value } => {
-                tags.iter().any(|(k, v)| k == key && v == value)
-            }
-            TagFilter::KeyExists { key } => {
-                tags.iter().any(|(k, _)| k == key)
-            }
+            TagFilter::Tag { key, value } => tags.iter().any(|(k, v)| k == key && v == value),
+            TagFilter::KeyExists { key } => tags.iter().any(|(k, _)| k == key),
             TagFilter::All(filters) => filters.iter().all(|f| f.matches(tags)),
             TagFilter::Any(filters) => filters.iter().any(|f| f.matches(tags)),
             TagFilter::Not(filter) => !filter.matches(tags),
@@ -90,12 +86,10 @@ impl TagFilter {
     /// to [`Self::matches`] but avoids cloning into owned `String`s.
     pub fn matches_str(&self, tags: &[(&str, &str)]) -> bool {
         match self {
-            TagFilter::Tag { key, value } => {
-                tags.iter().any(|(k, v)| *k == key.as_str() && *v == value.as_str())
-            }
-            TagFilter::KeyExists { key } => {
-                tags.iter().any(|(k, _)| *k == key.as_str())
-            }
+            TagFilter::Tag { key, value } => tags
+                .iter()
+                .any(|(k, v)| *k == key.as_str() && *v == value.as_str()),
+            TagFilter::KeyExists { key } => tags.iter().any(|(k, _)| *k == key.as_str()),
             TagFilter::All(filters) => filters.iter().all(|f| f.matches_str(tags)),
             TagFilter::Any(filters) => filters.iter().any(|f| f.matches_str(tags)),
             TagFilter::Not(filter) => !filter.matches_str(tags),
@@ -147,7 +141,10 @@ mod tests {
     #[test]
     fn test_exact_match() {
         let filter = TagFilter::tag("office", "property_management");
-        assert!(filter.matches(&tags(&[("office", "property_management"), ("name", "Acme")])));
+        assert!(filter.matches(&tags(&[
+            ("office", "property_management"),
+            ("name", "Acme")
+        ])));
         assert!(!filter.matches(&tags(&[("office", "company"), ("name", "Acme")])));
         assert!(!filter.matches(&tags(&[("name", "Acme")])));
     }
@@ -176,7 +173,10 @@ mod tests {
             TagFilter::key_exists("name"),
             TagFilter::tag("office", "property_management"),
         ]);
-        assert!(filter.matches(&tags(&[("name", "Acme"), ("office", "property_management")])));
+        assert!(filter.matches(&tags(&[
+            ("name", "Acme"),
+            ("office", "property_management")
+        ])));
         assert!(!filter.matches(&tags(&[("office", "property_management")])));
     }
 
@@ -184,7 +184,7 @@ mod tests {
     fn test_not() {
         let filter = TagFilter::all(vec![
             TagFilter::key_exists("name"),
-            TagFilter::not(TagFilter::tag("access", "private")),
+            TagFilter::negate(TagFilter::tag("access", "private")),
         ]);
         assert!(filter.matches(&tags(&[("name", "Acme")])));
         assert!(!filter.matches(&tags(&[("name", "Acme"), ("access", "private")])));
@@ -236,7 +236,7 @@ mod tests {
         // Include "shop=*" AND NOT "brand=McDonalds"
         let include = TagFilter::parse("shop=*");
         let exclude = TagFilter::parse("brand=McDonalds");
-        let filter = TagFilter::all(vec![include, TagFilter::not(exclude)]);
+        let filter = TagFilter::all(vec![include, TagFilter::negate(exclude)]);
 
         assert!(filter.matches_str(&[("shop", "tyres"), ("name", "Local Tires")]));
         assert!(!filter.matches_str(&[("shop", "fast_food"), ("brand", "McDonalds")]));

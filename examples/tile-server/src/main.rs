@@ -6,7 +6,10 @@ use clap::Parser;
 use osmic_serve::{TileServer, TileServerConfig};
 
 #[derive(Parser)]
-#[command(name = "tile-server", about = "Serve vector tiles from a PMTiles archive")]
+#[command(
+    name = "tile-server",
+    about = "Serve vector tiles from a PMTiles archive"
+)]
 struct Args {
     /// Path to the PMTiles file
     pmtiles_file: PathBuf,

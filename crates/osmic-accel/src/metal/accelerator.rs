@@ -8,6 +8,9 @@ use super::batch::GpuBatch;
 use super::context::MetalContext;
 use super::flatten::{FlattenedBatch, WorkItem};
 
+/// Output of a GPU clip operation: per-geometry optional (vertex data, vertex count).
+type ClipResults = Vec<Option<(Vec<f32>, u32)>>;
+
 /// High-level GPU accelerator for geometry clipping.
 ///
 /// Coordinates must be pre-projected to tile-local space.
@@ -24,10 +27,7 @@ impl GpuAccelerator {
     }
 
     /// Clip a batch of pre-projected geometries synchronously.
-    pub fn clip_batch(
-        &self,
-        items: &[WorkItem<'_>],
-    ) -> AccelResult<Vec<Option<(Vec<f32>, u32)>>> {
+    pub fn clip_batch(&self, items: &[WorkItem<'_>]) -> AccelResult<ClipResults> {
         if items.is_empty() {
             return Ok(Vec::new());
         }
@@ -40,7 +40,7 @@ impl GpuAccelerator {
         let batch = GpuBatch::upload(&self.ctx, &flat)?;
         batch.dispatch_clip(&self.ctx)?;
 
-        let results: Vec<Option<(Vec<f32>, u32)>> = (0..flat.descriptors.len())
+        let results: ClipResults = (0..flat.descriptors.len())
             .map(|i| batch.read_output(i))
             .collect();
 
@@ -48,10 +48,7 @@ impl GpuAccelerator {
     }
 
     /// Dispatch clip asynchronously — returns a pending batch for later readback.
-    pub fn clip_batch_async(
-        &self,
-        items: &[WorkItem<'_>],
-    ) -> AccelResult<Option<PendingBatch>> {
+    pub fn clip_batch_async(&self, items: &[WorkItem<'_>]) -> AccelResult<Option<PendingBatch>> {
         if items.is_empty() {
             return Ok(None);
         }

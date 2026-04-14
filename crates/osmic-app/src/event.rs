@@ -93,10 +93,14 @@ mod tests {
         let b = Arc::new(AtomicU32::new(0));
 
         let a_clone = Arc::clone(&a);
-        bus.subscribe::<PingEvent, _>(move |_| { a_clone.fetch_add(1, Ordering::SeqCst); });
+        bus.subscribe::<PingEvent, _>(move |_| {
+            a_clone.fetch_add(1, Ordering::SeqCst);
+        });
 
         let b_clone = Arc::clone(&b);
-        bus.subscribe::<PingEvent, _>(move |_| { b_clone.fetch_add(10, Ordering::SeqCst); });
+        bus.subscribe::<PingEvent, _>(move |_| {
+            b_clone.fetch_add(10, Ordering::SeqCst);
+        });
 
         bus.emit(&PingEvent);
         assert_eq!(a.load(Ordering::SeqCst), 1);
@@ -117,10 +121,14 @@ mod tests {
         let pong_count = Arc::new(AtomicU32::new(0));
 
         let ping_clone = Arc::clone(&ping_count);
-        bus.subscribe::<PingEvent, _>(move |_| { ping_clone.fetch_add(1, Ordering::SeqCst); });
+        bus.subscribe::<PingEvent, _>(move |_| {
+            ping_clone.fetch_add(1, Ordering::SeqCst);
+        });
 
         let pong_clone = Arc::clone(&pong_count);
-        bus.subscribe::<PongEvent, _>(move |_| { pong_clone.fetch_add(1, Ordering::SeqCst); });
+        bus.subscribe::<PongEvent, _>(move |_| {
+            pong_clone.fetch_add(1, Ordering::SeqCst);
+        });
 
         bus.emit(&PingEvent);
         // Only PingEvent handler fires; PongEvent counter must remain zero.

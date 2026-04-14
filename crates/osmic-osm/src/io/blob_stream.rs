@@ -150,15 +150,12 @@ impl<'a> Iterator for BlobStreamIter<'a> {
 /// The I/O thread's main loop — reads blobs from disk and pushes them
 /// to the channel until EOF or the channel is closed.
 fn io_thread_main(path: PathBuf, tx: Sender<io::Result<Blob>>) -> io::Result<()> {
-    let reader = BlobReader::from_path(&path).map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to open PBF {}: {e}", path.display()),
-        )
-    })?;
+    let reader = BlobReader::from_path(&path)
+        .map_err(|e| io::Error::other(format!("Failed to open PBF {}: {e}", path.display())))?;
 
     for blob_result in reader {
-        let msg = blob_result.map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()));
+        let msg =
+            blob_result.map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()));
 
         // If the receiver has been dropped (e.g. consumer exited early),
         // stop reading. Returning the SendError propagates nothing; it's
@@ -176,13 +173,12 @@ mod tests {
     use super::*;
     use osmpbf::BlobDecode;
 
-    /// A known-good tiny PBF that ships with the osmpbf crate for testing.
+    /// Path to a test PBF file. Set `OSMIC_TEST_PBF` to any small `.osm.pbf`
+    /// to exercise this test; otherwise it is skipped.
     fn test_pbf_path() -> Option<PathBuf> {
-        let candidates = [
-            // osmpbf vendored test file
-            "/Users/nickpaterno/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/osmpbf-0.3.8/tests/test.osm.pbf",
-        ];
-        candidates.iter().map(PathBuf::from).find(|p| p.exists())
+        std::env::var_os("OSMIC_TEST_PBF")
+            .map(PathBuf::from)
+            .filter(|p| p.exists())
     }
 
     #[test]
@@ -192,8 +188,8 @@ mod tests {
             return;
         };
 
-        let stream = BlobStream::spawn(&path, BlobStreamConfig::default())
-            .expect("spawn should succeed");
+        let stream =
+            BlobStream::spawn(&path, BlobStreamConfig::default()).expect("spawn should succeed");
 
         let count = stream.iter().filter(|r| r.is_ok()).count();
         assert!(count >= 1, "stream must yield at least one blob");
@@ -206,8 +202,8 @@ mod tests {
             return;
         };
 
-        let stream = BlobStream::spawn(&path, BlobStreamConfig::default())
-            .expect("spawn should succeed");
+        let stream =
+            BlobStream::spawn(&path, BlobStreamConfig::default()).expect("spawn should succeed");
 
         let mut saw_header = false;
         let mut saw_data = false;
@@ -233,7 +229,9 @@ mod tests {
         // Use capacity 1 — maximally backpressured but still works
         let stream = BlobStream::spawn(
             &path,
-            BlobStreamConfig { channel_capacity: 1 },
+            BlobStreamConfig {
+                channel_capacity: 1,
+            },
         )
         .expect("spawn should succeed");
 

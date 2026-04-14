@@ -147,11 +147,9 @@ pub fn assemble_multipolygon(
         // Polygon has interiors_mut(FnOnce(&mut [LineString])) but no
         // replace-all helper, so we use the raw-parts round-trip via
         // into_inner() / Polygon::new.
-        let (exterior, existing) = std::mem::replace(
-            poly,
-            Polygon::new(LineString::new(Vec::new()), Vec::new()),
-        )
-        .into_inner();
+        let (exterior, existing) =
+            std::mem::replace(poly, Polygon::new(LineString::new(Vec::new()), Vec::new()))
+                .into_inner();
         let mut all_holes = existing;
         all_holes.extend(holes);
         *poly = Polygon::new(exterior, all_holes);
@@ -191,7 +189,9 @@ fn close_all_rings(
             }
 
             // Find a continuation from the ring's current end point, same role.
-            let Some(current_end) = ring.last() else { break };
+            let Some(current_end) = ring.last() else {
+                break;
+            };
             let Some((next_idx, needs_reverse)) =
                 segments.find_matching_unused(current_end, seed.role)
             else {
@@ -238,7 +238,7 @@ fn close_all_rings(
                 Role::Outer => outer_rings.push(ring),
                 Role::Inner => inner_rings.push(ring),
             }
-        } else if ring.len() >= 1 {
+        } else if !ring.is_empty() {
             report
                 .warnings
                 .push(AssemblyWarning::DegenerateRing { role: seed.role });
@@ -258,11 +258,23 @@ mod tests {
     }
 
     fn square_ccw() -> Vec<Coord<f64>> {
-        vec![c(0.0, 0.0), c(1.0, 0.0), c(1.0, 1.0), c(0.0, 1.0), c(0.0, 0.0)]
+        vec![
+            c(0.0, 0.0),
+            c(1.0, 0.0),
+            c(1.0, 1.0),
+            c(0.0, 1.0),
+            c(0.0, 0.0),
+        ]
     }
 
     fn square_cw() -> Vec<Coord<f64>> {
-        vec![c(0.0, 0.0), c(0.0, 1.0), c(1.0, 1.0), c(1.0, 0.0), c(0.0, 0.0)]
+        vec![
+            c(0.0, 0.0),
+            c(0.0, 1.0),
+            c(1.0, 1.0),
+            c(1.0, 0.0),
+            c(0.0, 0.0),
+        ]
     }
 
     /// A single closed outer way should produce a single Polygon.
@@ -318,7 +330,13 @@ mod tests {
             c(0.0, 0.0),
         ];
         // CCW inner — will be flipped to CW
-        let inner = vec![c(2.0, 2.0), c(3.0, 2.0), c(3.0, 3.0), c(2.0, 3.0), c(2.0, 2.0)];
+        let inner = vec![
+            c(2.0, 2.0),
+            c(3.0, 2.0),
+            c(3.0, 3.0),
+            c(2.0, 3.0),
+            c(2.0, 2.0),
+        ];
         let mut way_geoms = HashMap::new();
         way_geoms.insert(1, outer);
         way_geoms.insert(2, inner);
@@ -360,14 +378,29 @@ mod tests {
         let (_, report) = assemble_multipolygon(&[1], &[2], &way_geoms).unwrap();
         assert_eq!(report.inner_rings_matched, 0);
         assert_eq!(report.warnings.len(), 1);
-        assert!(matches!(report.warnings[0], AssemblyWarning::OrphanedInner { .. }));
+        assert!(matches!(
+            report.warnings[0],
+            AssemblyWarning::OrphanedInner { .. }
+        ));
     }
 
     /// Two disjoint outer ways → MultiPolygon.
     #[test]
     fn multi_outer_becomes_multipolygon() {
-        let outer1 = vec![c(0.0, 0.0), c(1.0, 0.0), c(1.0, 1.0), c(0.0, 1.0), c(0.0, 0.0)];
-        let outer2 = vec![c(5.0, 5.0), c(6.0, 5.0), c(6.0, 6.0), c(5.0, 6.0), c(5.0, 5.0)];
+        let outer1 = vec![
+            c(0.0, 0.0),
+            c(1.0, 0.0),
+            c(1.0, 1.0),
+            c(0.0, 1.0),
+            c(0.0, 0.0),
+        ];
+        let outer2 = vec![
+            c(5.0, 5.0),
+            c(6.0, 5.0),
+            c(6.0, 6.0),
+            c(5.0, 6.0),
+            c(5.0, 5.0),
+        ];
         let mut way_geoms = HashMap::new();
         way_geoms.insert(1, outer1);
         way_geoms.insert(2, outer2);

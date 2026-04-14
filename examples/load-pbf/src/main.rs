@@ -48,7 +48,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Create node location store
-    info!("Creating node location store at {}", args.node_store.display());
+    info!(
+        "Creating node location store at {}",
+        args.node_store.display()
+    );
     let node_store = DenseNodeLocationStore::create(&args.node_store, args.max_node_id)?;
 
     // Process PBF
@@ -124,10 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "\nSample query at center ({:.4}, {:.4}):",
         center.lon, center.lat
     );
-    println!(
-        "  Features in 0.02x0.02 deg box: {}",
-        query_results.len()
-    );
+    println!("  Features in 0.02x0.02 deg box: {}", query_results.len());
 
     // Cleanup temp file
     if args.node_store.starts_with("/tmp") {

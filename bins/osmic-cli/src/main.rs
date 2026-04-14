@@ -2,10 +2,12 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use clap::{Parser, Subcommand};
-use osmic_extract::{deduplicate, write_csv, write_geojson, write_json, ExtractConfig, Extractor, TagFilter};
+use osmic_extract::{
+    deduplicate, write_csv, write_geojson, write_json, ExtractConfig, Extractor, TagFilter,
+};
 use osmic_index::RamNodeLocationStore;
-use osmic_osm::LayerSet;
 use osmic_osm::pipeline::PbfProcessor;
+use osmic_osm::LayerSet;
 use osmic_tiles::pipeline::{TileGenerator, TileGeneratorConfig};
 use osmic_tiles::pmtiles::PmTilesArchive;
 use osmic_tiles::{MvtEncoder, TileEncoder};
@@ -185,7 +187,10 @@ enum Commands {
         state_dir: PathBuf,
 
         /// Replication base URL
-        #[arg(long, default_value = "https://planet.openstreetmap.org/replication/minute/")]
+        #[arg(
+            long,
+            default_value = "https://planet.openstreetmap.org/replication/minute/"
+        )]
         replication_url: String,
 
         /// Feature store database path
@@ -389,9 +394,16 @@ fn make_encoder(
         #[cfg(feature = "mlt")]
         "mlt" => Ok(Box::new(osmic_tiles::MltEncoder)),
         #[cfg(not(feature = "mlt"))]
-        "mlt" => Err("MLT format requires the 'mlt' feature. Rebuild with: cargo build --features mlt".into()),
+        "mlt" => Err(
+            "MLT format requires the 'mlt' feature. Rebuild with: cargo build --features mlt"
+                .into(),
+        ),
         other => {
-            let available = if cfg!(feature = "mlt") { "mvt, mlt" } else { "mvt" };
+            let available = if cfg!(feature = "mlt") {
+                "mvt, mlt"
+            } else {
+                "mvt"
+            };
             Err(format!("Unsupported tile format: {other}. Available: {available}").into())
         }
     }
@@ -441,24 +453,29 @@ fn generate_tiles(
 
     // Step 1b: Optional tag filter. Features that don't match are dropped
     // before tile generation, so they never reach the encoder.
-    let filtered_features = apply_feature_tag_filter(
-        result.features,
-        &result.tag_store,
-        tags,
-        exclude_tags,
-    )?;
+    let filtered_features =
+        apply_feature_tag_filter(result.features, &result.tag_store, tags, exclude_tags)?;
     if filtered_features.len() != result.stats.feature_count as usize {
         println!(
             "Tag filter:    {} features retained ({} dropped)",
             format_number(filtered_features.len() as u64),
             format_number(
-                result.stats.feature_count.saturating_sub(filtered_features.len() as u64)
+                result
+                    .stats
+                    .feature_count
+                    .saturating_sub(filtered_features.len() as u64)
             )
         );
     }
 
     // Step 2: Create PMTiles archive
-    let mut archive = PmTilesArchive::create(output, &result.bbox, min_zoom, max_zoom, encoder.tile_type())?;
+    let mut archive = PmTilesArchive::create(
+        output,
+        &result.bbox,
+        min_zoom,
+        max_zoom,
+        encoder.tile_type(),
+    )?;
 
     // Step 3: Generate tiles
     //
@@ -488,9 +505,7 @@ fn generate_tiles(
         encoder,
     );
 
-    let tile_count = generator.generate_all(|coord, data| {
-        archive.add_tile(coord, data)
-    })?;
+    let tile_count = generator.generate_all(|coord, data| archive.add_tile(coord, data))?;
 
     // Step 4: Finalize
     archive.finalize()?;
@@ -603,14 +618,8 @@ fn inspect(
     let result = processor.process(pbf_file, &node_store, &LayerSet::all())?;
 
     println!("\n--- Statistics ---");
-    println!(
-        "Nodes:      {:>14}",
-        format_number(result.stats.node_count)
-    );
-    println!(
-        "Ways:       {:>14}",
-        format_number(result.stats.way_count)
-    );
+    println!("Nodes:      {:>14}", format_number(result.stats.node_count));
+    println!("Ways:       {:>14}", format_number(result.stats.way_count));
     println!(
         "Relations:  {:>14}",
         format_number(result.stats.relation_count)
@@ -697,24 +706,25 @@ fn extract_entities(
     let filter = if let Some(excl) = exclude_tags.map(|s| s.trim()).filter(|s| !s.is_empty()) {
         println!("Exclude:{excl}");
         let exclude_filter = TagFilter::parse(excl);
-        TagFilter::all(vec![include_filter, TagFilter::not(exclude_filter)])
+        TagFilter::all(vec![include_filter, TagFilter::negate(exclude_filter)])
     } else {
         include_filter
     };
-    let parsed_bbox = bbox
-        .map(|s| {
-            let parts: Vec<f64> = s.split(',').filter_map(|p| p.parse().ok()).collect();
-            if parts.len() != 4 {
-                eprintln!("Error: bbox must be min_lon,min_lat,max_lon,max_lat");
-                std::process::exit(1);
-            }
-            let (min_lon, min_lat, max_lon, max_lat) = (parts[0], parts[1], parts[2], parts[3]);
-            if min_lon > max_lon || min_lat > max_lat {
-                eprintln!("Error: bbox is inverted (min > max). Expected: min_lon,min_lat,max_lon,max_lat");
-                std::process::exit(1);
-            }
-            (min_lon, min_lat, max_lon, max_lat)
-        });
+    let parsed_bbox = bbox.map(|s| {
+        let parts: Vec<f64> = s.split(',').filter_map(|p| p.parse().ok()).collect();
+        if parts.len() != 4 {
+            eprintln!("Error: bbox must be min_lon,min_lat,max_lon,max_lat");
+            std::process::exit(1);
+        }
+        let (min_lon, min_lat, max_lon, max_lat) = (parts[0], parts[1], parts[2], parts[3]);
+        if min_lon > max_lon || min_lat > max_lat {
+            eprintln!(
+                "Error: bbox is inverted (min > max). Expected: min_lon,min_lat,max_lon,max_lat"
+            );
+            std::process::exit(1);
+        }
+        (min_lon, min_lat, max_lon, max_lat)
+    });
 
     if let Some(bb) = &parsed_bbox {
         println!("BBox:   {},{},{},{}", bb.0, bb.1, bb.2, bb.3);
@@ -760,10 +770,7 @@ fn extract_entities(
     };
 
     // Write output based on file extension
-    let ext = output
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("csv");
+    let ext = output.extension().and_then(|e| e.to_str()).unwrap_or("csv");
 
     match ext {
         "json" => write_json(&entities, output)?,
@@ -830,9 +837,8 @@ fn update_from_replication(
     println!("Parsed {} changes", format_number(changes.len() as u64));
 
     // Apply changes
-    let dirty = osmic_repl::apply_changes(
-        &changes, &store, &node_store, &tag_store, &layers, &config,
-    )?;
+    let dirty =
+        osmic_repl::apply_changes(&changes, &store, &node_store, &tag_store, &layers, &config)?;
 
     println!(
         "Dirty tiles: {} (across zoom {}-{})",

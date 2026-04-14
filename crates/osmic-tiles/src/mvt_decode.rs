@@ -41,13 +41,7 @@ pub fn decode_tile(data: &[u8], _z: u8, x: u32, y: u32, n: f64) -> Vec<DecodedFe
     features
 }
 
-fn decode_layer(
-    data: &[u8],
-    x: u32,
-    y: u32,
-    n: f64,
-    out: &mut Vec<DecodedFeature>,
-) {
+fn decode_layer(data: &[u8], x: u32, y: u32, n: f64, out: &mut Vec<DecodedFeature>) {
     let mut pos = 0;
     let mut name = String::new();
     let mut keys: Vec<String> = Vec::new();
@@ -120,6 +114,8 @@ fn decode_layer(
     }
 }
 
+// All args are independent decode inputs; grouping them into a struct would add ceremony for a private fn.
+#[allow(clippy::too_many_arguments)]
 fn decode_feature(
     data: &[u8],
     layer_name: &str,
@@ -207,7 +203,10 @@ fn decode_feature(
         let mx = (tx as f64 + tx_local / extent) / n;
         let my = (ty as f64 + ty_local / extent) / n;
         let lon = mx * 360.0 - 180.0;
-        let lat = (std::f64::consts::PI * (1.0 - 2.0 * my)).sinh().atan().to_degrees();
+        let lat = (std::f64::consts::PI * (1.0 - 2.0 * my))
+            .sinh()
+            .atan()
+            .to_degrees();
         Coord { x: lon, y: lat }
     };
 

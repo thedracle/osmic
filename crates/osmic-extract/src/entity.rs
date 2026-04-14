@@ -89,16 +89,13 @@ impl Entity {
     /// Format remaining tags as semicolon-separated key=value pairs,
     /// excluding address, contact, and metadata fields.
     pub fn format_tags(tags: &[(String, String)]) -> String {
-        let skip_keys: &[&str] = &[
-            "name", "phone", "telephone", "website", "url", "operator",
-        ];
+        let skip_keys: &[&str] = &["name", "phone", "telephone", "website", "url", "operator"];
         let skip_prefixes: &[&str] = &["addr:", "contact:"];
 
         let mut filtered: Vec<(&str, &str)> = tags
             .iter()
             .filter(|(k, _)| {
-                !skip_keys.contains(&k.as_str())
-                    && !skip_prefixes.iter().any(|p| k.starts_with(p))
+                !skip_keys.contains(&k.as_str()) && !skip_prefixes.iter().any(|p| k.starts_with(p))
             })
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect();

@@ -29,10 +29,7 @@ impl From<LonLat> for geo_types::Coord<f64> {
 
 impl From<geo_types::Coord<f64>> for LonLat {
     fn from(c: geo_types::Coord<f64>) -> Self {
-        Self {
-            lon: c.x,
-            lat: c.y,
-        }
+        Self { lon: c.x, lat: c.y }
     }
 }
 
@@ -132,8 +129,16 @@ mod tests {
         let p = PackedCoord::pack(lon, lat);
         let ll = p.unpack();
         // f32 has ~7 significant decimal digits; within ~0.001 degree at these values.
-        assert!((ll.lon - lon).abs() < 0.001, "lon diff: {}", (ll.lon - lon).abs());
-        assert!((ll.lat - lat).abs() < 0.001, "lat diff: {}", (ll.lat - lat).abs());
+        assert!(
+            (ll.lon - lon).abs() < 0.001,
+            "lon diff: {}",
+            (ll.lon - lon).abs()
+        );
+        assert!(
+            (ll.lat - lat).abs() < 0.001,
+            "lat diff: {}",
+            (ll.lat - lat).abs()
+        );
     }
 
     #[test]
@@ -158,7 +163,10 @@ mod tests {
     fn packed_coord_origin_is_not_empty() {
         // (0.0, 0.0) packed adds the offsets, so the stored bits are non-zero.
         let p = PackedCoord::pack(0.0, 0.0);
-        assert!(!p.is_empty(), "packed (0,0) must NOT be empty due to offset encoding");
+        assert!(
+            !p.is_empty(),
+            "packed (0,0) must NOT be empty due to offset encoding"
+        );
     }
 
     #[test]

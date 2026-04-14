@@ -341,6 +341,9 @@ mod tests {
                     .starts_with("osmic_sort_chunk")
             })
             .collect();
-        assert!(remaining.is_empty(), "temp files must be deleted after iteration");
+        assert!(
+            remaining.is_empty(),
+            "temp files must be deleted after iteration"
+        );
     }
 }

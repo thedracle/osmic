@@ -13,28 +13,41 @@ members = [
     "crates/osmic-serve",
     "crates/osmic-extract",
     "crates/osmic-accel",
+    "crates/osmic-repl",
     "crates/osmic",
     "bins/osmic-cli",
     "bins/osmic-viewer",
     "examples/load-pbf",
     "examples/render-static",
     "examples/tile-server",
-    "examples/custom-plugin", "crates/osmic-repl",
+    "examples/custom-plugin",
 ]
 
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.94"
+license = "MIT"
+repository = "https://github.com/epistates/osmic"
+homepage = "https://github.com/epistates/osmic"
+authors = ["Nick Paterno"]
+readme = "README.md"
+
 [workspace.dependencies]
-# Internal crates
-osmic-core = { path = "crates/osmic-core" }
-osmic-osm = { path = "crates/osmic-osm", default-features = false }
-osmic-geo = { path = "crates/osmic-geo" }
-osmic-index = { path = "crates/osmic-index" }
-osmic-style = { path = "crates/osmic-style" }
-osmic-tiles = { path = "crates/osmic-tiles" }
-osmic-render = { path = "crates/osmic-render" }
-osmic-text = { path = "crates/osmic-text" }
-osmic-app = { path = "crates/osmic-app" }
-osmic-serve = { path = "crates/osmic-serve" }
-osmic-extract = { path = "crates/osmic-extract" }
+# Internal crates — version + path so `cargo publish` resolves via registry
+osmic-core = { version = "0.1.0", path = "crates/osmic-core" }
+osmic-osm = { version = "0.1.0", path = "crates/osmic-osm", default-features = false }
+osmic-geo = { version = "0.1.0", path = "crates/osmic-geo" }
+osmic-index = { version = "0.1.0", path = "crates/osmic-index" }
+osmic-style = { version = "0.1.0", path = "crates/osmic-style" }
+osmic-tiles = { version = "0.1.0", path = "crates/osmic-tiles" }
+osmic-render = { version = "0.1.0", path = "crates/osmic-render" }
+osmic-text = { version = "0.1.0", path = "crates/osmic-text" }
+osmic-app = { version = "0.1.0", path = "crates/osmic-app" }
+osmic-serve = { version = "0.1.0", path = "crates/osmic-serve" }
+osmic-extract = { version = "0.1.0", path = "crates/osmic-extract" }
+osmic-accel = { version = "0.1.0", path = "crates/osmic-accel" }
+osmic-repl = { version = "0.1.0", path = "crates/osmic-repl" }
 
 # Parsing & data
 osmpbf = "0.3"

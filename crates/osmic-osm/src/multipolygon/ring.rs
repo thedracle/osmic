@@ -50,8 +50,7 @@ impl ProtoRing {
     /// Whether the ring is closed (≥4 coords and last equals first).
     /// OGC polygon rings require at least 4 points (3 unique + repeat).
     pub fn is_closed(&self) -> bool {
-        self.coords.len() >= 4
-            && self.coords.first() == self.coords.last()
+        self.coords.len() >= 4 && self.coords.first() == self.coords.last()
     }
 
     pub fn is_ccw(&self) -> bool {

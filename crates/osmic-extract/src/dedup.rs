@@ -15,8 +15,7 @@ fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let phi2 = lat2.to_radians();
     let dphi = (lat2 - lat1).to_radians();
     let dlambda = (lon2 - lon1).to_radians();
-    let a = (dphi / 2.0).sin().powi(2)
-        + phi1.cos() * phi2.cos() * (dlambda / 2.0).sin().powi(2);
+    let a = (dphi / 2.0).sin().powi(2) + phi1.cos() * phi2.cos() * (dlambda / 2.0).sin().powi(2);
     R * 2.0 * a.sqrt().atan2((1.0 - a).sqrt())
 }
 
@@ -97,7 +96,9 @@ fn find_merge_target(kept: &[Entity], candidate: &Entity, radius_meters: f64) ->
                 }
             }
             // Both lack coordinates — collapse same-name
-            (None, _, None, _) | (_, None, _, None) if existing.lat.is_none() && candidate.lat.is_none() => {
+            (None, _, None, _) | (_, None, _, None)
+                if existing.lat.is_none() && candidate.lat.is_none() =>
+            {
                 return Some(i);
             }
             // Mixed (one has coords, one doesn't) — don't merge,

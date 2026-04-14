@@ -198,7 +198,10 @@ mod tests {
         let store = TagStore::new();
         let tags = single_tag(&store, WellKnownKey::Highway, "residential");
         let kind = classify(&tags, &store, &LayerSet::all()).expect("must classify");
-        assert!(matches!(kind, FeatureKind::Highway(HighwayKind::Residential)));
+        assert!(matches!(
+            kind,
+            FeatureKind::Highway(HighwayKind::Residential)
+        ));
     }
 
     #[test]
@@ -233,8 +236,14 @@ mod tests {
     fn highway_wins_over_building() {
         let store = TagStore::new();
         let mut tags = Tags::new();
-        tags.push(store.well_known(WellKnownKey::Highway), store.intern_value("primary"));
-        tags.push(store.well_known(WellKnownKey::Building), store.intern_value("yes"));
+        tags.push(
+            store.well_known(WellKnownKey::Highway),
+            store.intern_value("primary"),
+        );
+        tags.push(
+            store.well_known(WellKnownKey::Building),
+            store.intern_value("yes"),
+        );
         let kind = classify(&tags, &store, &LayerSet::all()).expect("must classify");
         assert!(
             matches!(kind, FeatureKind::Highway(_)),
@@ -264,8 +273,14 @@ mod tests {
         let store = TagStore::new();
         let mut tags = Tags::new();
         // Only non-renderable tags.
-        tags.push(store.well_known(WellKnownKey::Name), store.intern_value("Test Street"));
-        tags.push(store.well_known(WellKnownKey::Maxspeed), store.intern_value("50"));
+        tags.push(
+            store.well_known(WellKnownKey::Name),
+            store.intern_value("Test Street"),
+        );
+        tags.push(
+            store.well_known(WellKnownKey::Maxspeed),
+            store.intern_value("50"),
+        );
         let result = classify(&tags, &store, &LayerSet::all());
         assert!(result.is_none(), "non-renderable tags must return None");
     }
@@ -308,8 +323,14 @@ mod tests {
         // waterway= is checked before water= in the priority chain.
         let store = TagStore::new();
         let mut tags = Tags::new();
-        tags.push(store.well_known(WellKnownKey::Waterway), store.intern_value("river"));
-        tags.push(store.well_known(WellKnownKey::Water), store.intern_value("lake"));
+        tags.push(
+            store.well_known(WellKnownKey::Waterway),
+            store.intern_value("river"),
+        );
+        tags.push(
+            store.well_known(WellKnownKey::Water),
+            store.intern_value("lake"),
+        );
         let kind = classify(&tags, &store, &LayerSet::all()).expect("must classify");
         assert!(
             matches!(kind, FeatureKind::Water(WaterKind::River)),

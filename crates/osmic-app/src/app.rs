@@ -38,7 +38,10 @@ impl App {
     pub fn add_plugin<P: Plugin>(&mut self, plugin: P) -> &mut Self {
         let type_id = TypeId::of::<P>();
         if self.plugin_names.contains(&type_id) {
-            info!(plugin = plugin.name(), "Plugin already registered, skipping");
+            info!(
+                plugin = plugin.name(),
+                "Plugin already registered, skipping"
+            );
             return self;
         }
         self.plugin_names.insert(type_id);
@@ -53,7 +56,10 @@ impl App {
             let name = plugin.name().to_string();
             // Deduplicate: skip if a plugin with the same name is already registered
             if self.plugins.iter().any(|p| p.name() == name) {
-                info!(plugin = name, "Plugin already registered via group, skipping");
+                info!(
+                    plugin = name,
+                    "Plugin already registered via group, skipping"
+                );
                 continue;
             }
             self.plugins.push(plugin);
@@ -142,7 +148,9 @@ mod tests {
 
     impl CountingPlugin {
         fn new(counter: Arc<AtomicU32>) -> Self {
-            Self { build_calls: counter }
+            Self {
+                build_calls: counter,
+            }
         }
     }
 
@@ -216,9 +224,17 @@ mod tests {
         app.add_plugin(CountingPlugin::new(Arc::clone(&counter)));
 
         app.build();
-        assert_eq!(counter.load(Ordering::SeqCst), 1, "first build should fire once");
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            1,
+            "first build should fire once"
+        );
 
         app.build(); // second call must be a no-op
-        assert_eq!(counter.load(Ordering::SeqCst), 1, "second build must not re-fire plugins");
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            1,
+            "second build must not re-fire plugins"
+        );
     }
 }

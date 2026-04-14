@@ -1,7 +1,5 @@
 use geo_types::{Coord, Geometry as GeoGeometry, LineString, MultiPolygon, Point, Polygon};
-use mlt_core::v01::{
-    PropValue, StagedLayer01, TileFeature as MltTileFeature, TileLayer01,
-};
+use mlt_core::v01::{PropValue, StagedLayer01, TileFeature as MltTileFeature, TileLayer01};
 use mlt_core::EncodedLayer;
 use osmic_osm::tags::{TagStore, WellKnownKey};
 #[cfg(feature = "native")]
