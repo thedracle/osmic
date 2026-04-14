@@ -4,14 +4,14 @@ use std::time::Instant;
 use clap::Parser;
 use tracing::info;
 
-use omm_core::bbox::BBox;
-use omm_core::geometry::Geometry;
-use omm_core::Color;
-use omm_geo::projection::bbox_to_tile_range;
-use omm_render::backend::{RenderBackend, RenderConfig};
-use omm_render::scene::{LineCap, LineJoin, RenderFeature, RenderLayer, SceneGraph};
-use omm_render::skia::SkiaBackend;
-use omm_tiles::mvt_decode::{self, DecodedFeature};
+use osmic_core::bbox::BBox;
+use osmic_core::geometry::Geometry;
+use osmic_core::Color;
+use osmic_geo::projection::bbox_to_tile_range;
+use osmic_render::backend::{RenderBackend, RenderConfig};
+use osmic_render::scene::{LineCap, LineJoin, RenderFeature, RenderLayer, SceneGraph};
+use osmic_render::skia::SkiaBackend;
+use osmic_tiles::mvt_decode::{self, DecodedFeature};
 
 #[derive(Parser)]
 #[command(name = "render-static", about = "Render a map region to a styled PNG")]
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let render_bbox = parse_bbox(&args.bbox)?;
 
-    println!("=== OpenMapMarketor - Static Renderer ===");
+    println!("=== Osmic - Static Renderer ===");
     println!("Input:  {}", args.input.display());
     println!("Output: {}", args.output.display());
     println!("Size:   {}x{}", args.width, args.height);

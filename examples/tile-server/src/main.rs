@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use omm_serve::{TileServer, TileServerConfig};
+use osmic_serve::{TileServer, TileServerConfig};
 
 #[derive(Parser)]
 #[command(name = "tile-server", about = "Serve vector tiles from a PMTiles archive")]

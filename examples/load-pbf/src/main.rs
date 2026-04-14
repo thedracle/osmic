@@ -4,8 +4,8 @@ use std::time::Instant;
 use clap::Parser;
 use tracing::info;
 
-use omm_index::DenseNodeLocationStore;
-use omm_osm::pipeline::PbfProcessor;
+use osmic_index::DenseNodeLocationStore;
+use osmic_osm::pipeline::PbfProcessor;
 
 #[derive(Parser)]
 #[command(name = "load-pbf", about = "Load an OSM PBF file and print statistics")]
@@ -14,7 +14,7 @@ struct Args {
     pbf_file: PathBuf,
 
     /// Path for the node location store (temporary mmap file)
-    #[arg(long, default_value = "/tmp/omm-nodes.bin")]
+    #[arg(long, default_value = "/tmp/osmic-nodes.bin")]
     node_store: PathBuf,
 
     /// Maximum expected node ID
@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
 
-    println!("=== OpenMapMarketor - PBF Loader ===");
+    println!("=== Osmic - PBF Loader ===");
     println!("File: {}", args.pbf_file.display());
 
     // Verify file exists
@@ -54,12 +54,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Process PBF
     let start = Instant::now();
     let processor = PbfProcessor::new();
-    let result = processor.process(&args.pbf_file, &node_store, &omm_osm::LayerSet::all())?;
+    let result = processor.process(&args.pbf_file, &node_store, &osmic_osm::LayerSet::all())?;
 
     // Build spatial index
     info!("Building spatial index...");
     let index_start = Instant::now();
-    let index = omm_index::FeatureIndex::build(&result.features);
+    let index = osmic_index::FeatureIndex::build(&result.features);
     let index_duration = index_start.elapsed();
     info!(
         "Spatial index built: {} entries in {:.2}s",
@@ -113,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Sample query: center of bounding box
     let center = result.bbox.center();
-    let query_bbox = omm_core::BBox::new(
+    let query_bbox = osmic_core::BBox::new(
         center.lon - 0.01,
         center.lat - 0.01,
         center.lon + 0.01,

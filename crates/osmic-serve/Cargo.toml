@@ -1,0 +1,19 @@
+[package]
+name = "osmic-serve"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP tile server with Tower middleware pipeline"
+
+[dependencies]
+osmic-core = { workspace = true }
+osmic-app = { workspace = true }
+osmic-style = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tokio = { workspace = true }
+pmtiles = { workspace = true, features = ["mmap-async-tokio"] }
+bytes = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }

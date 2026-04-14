@@ -1,0 +1,13 @@
+[package]
+name = "osmic-core"
+version = "0.1.0"
+edition = "2021"
+description = "Shared types, errors, and coordinate primitives for OpenMapMarketor"
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+geo-types = { workspace = true }
+
+[dev-dependencies]
+osmic-geo = { workspace = true }

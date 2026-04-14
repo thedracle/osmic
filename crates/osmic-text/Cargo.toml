@@ -1,0 +1,10 @@
+[package]
+name = "osmic-text"
+version = "0.1.0"
+edition = "2021"
+description = "Text shaping, label collision, glyph atlas"
+
+[dependencies]
+osmic-core = { workspace = true }
+cosmic-text = { workspace = true }
+tracing = { workspace = true }

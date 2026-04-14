@@ -1,40 +1,40 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/omm-core",
-    "crates/omm-osm",
-    "crates/omm-geo",
-    "crates/omm-index",
-    "crates/omm-style",
-    "crates/omm-tiles",
-    "crates/omm-render",
-    "crates/omm-text",
-    "crates/omm-app",
-    "crates/omm-serve",
-    "crates/omm-extract",
-    "crates/omm-accel",
-    "crates/omm",
-    "bins/omm-cli",
-    "bins/omm-viewer",
+    "crates/osmic-core",
+    "crates/osmic-osm",
+    "crates/osmic-geo",
+    "crates/osmic-index",
+    "crates/osmic-style",
+    "crates/osmic-tiles",
+    "crates/osmic-render",
+    "crates/osmic-text",
+    "crates/osmic-app",
+    "crates/osmic-serve",
+    "crates/osmic-extract",
+    "crates/osmic-accel",
+    "crates/osmic",
+    "bins/osmic-cli",
+    "bins/osmic-viewer",
     "examples/load-pbf",
     "examples/render-static",
     "examples/tile-server",
-    "examples/custom-plugin", "crates/omm-repl",
+    "examples/custom-plugin", "crates/osmic-repl",
 ]
 
 [workspace.dependencies]
 # Internal crates
-omm-core = { path = "crates/omm-core" }
-omm-osm = { path = "crates/omm-osm", default-features = false }
-omm-geo = { path = "crates/omm-geo" }
-omm-index = { path = "crates/omm-index" }
-omm-style = { path = "crates/omm-style" }
-omm-tiles = { path = "crates/omm-tiles" }
-omm-render = { path = "crates/omm-render" }
-omm-text = { path = "crates/omm-text" }
-omm-app = { path = "crates/omm-app" }
-omm-serve = { path = "crates/omm-serve" }
-omm-extract = { path = "crates/omm-extract" }
+osmic-core = { path = "crates/osmic-core" }
+osmic-osm = { path = "crates/osmic-osm", default-features = false }
+osmic-geo = { path = "crates/osmic-geo" }
+osmic-index = { path = "crates/osmic-index" }
+osmic-style = { path = "crates/osmic-style" }
+osmic-tiles = { path = "crates/osmic-tiles" }
+osmic-render = { path = "crates/osmic-render" }
+osmic-text = { path = "crates/osmic-text" }
+osmic-app = { path = "crates/osmic-app" }
+osmic-serve = { path = "crates/osmic-serve" }
+osmic-extract = { path = "crates/osmic-extract" }
 
 # Parsing & data
 osmpbf = "0.3"

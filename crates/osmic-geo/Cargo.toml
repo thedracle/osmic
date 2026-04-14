@@ -1,0 +1,10 @@
+[package]
+name = "osmic-geo"
+version = "0.1.0"
+edition = "2021"
+description = "Projection, simplification, clipping, and validation"
+
+[dependencies]
+osmic-core = { workspace = true }
+geo = { workspace = true }
+geo-types = { workspace = true }

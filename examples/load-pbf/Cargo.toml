@@ -5,9 +5,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
-omm-core = { workspace = true }
-omm-osm = { workspace = true }
-omm-index = { workspace = true }
+osmic-core = { workspace = true }
+osmic-osm = { workspace = true }
+osmic-index = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

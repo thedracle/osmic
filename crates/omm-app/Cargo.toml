@@ -1,9 +1,0 @@
-[package]
-name = "omm-app"
-version = "0.1.0"
-edition = "2021"
-description = "Plugin system, App builder, event bus, and lifecycle"
-
-[dependencies]
-omm-core = { workspace = true }
-tracing = { workspace = true }

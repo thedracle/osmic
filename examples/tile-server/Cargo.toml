@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-omm-serve = { workspace = true }
+osmic-serve = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing-subscriber = { workspace = true }

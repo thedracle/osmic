@@ -1295,7 +1295,7 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 name = "custom-plugin"
 version = "0.1.0"
 dependencies = [
- "omm-core",
+ "osmic-core",
 ]
 
 [[package]]
@@ -2824,9 +2824,9 @@ name = "load-pbf"
 version = "0.1.0"
 dependencies = [
  "clap",
- "omm-core",
- "omm-index",
- "omm-osm",
+ "osmic-core",
+ "osmic-index",
+ "osmic-osm",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3493,239 +3493,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omm"
-version = "0.1.0"
-dependencies = [
- "omm-app",
- "omm-core",
- "omm-geo",
- "omm-index",
- "omm-osm",
- "omm-render",
- "omm-serve",
- "omm-style",
- "omm-text",
- "omm-tiles",
-]
-
-[[package]]
-name = "omm-accel"
-version = "0.1.0"
-dependencies = [
- "cc",
- "geo",
- "geo-types",
- "metal",
- "omm-core",
- "parking_lot",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "omm-app"
-version = "0.1.0"
-dependencies = [
- "omm-core",
- "tracing",
-]
-
-[[package]]
-name = "omm-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "omm-core",
- "omm-extract",
- "omm-index",
- "omm-osm",
- "omm-repl",
- "omm-serve",
- "omm-style",
- "omm-tiles",
- "reqwest 0.12.28",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "omm-core"
-version = "0.1.0"
-dependencies = [
- "geo-types",
- "omm-geo",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "omm-extract"
-version = "0.1.0"
-dependencies = [
- "omm-core",
- "omm-index",
- "omm-osm",
- "osmpbf",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "omm-geo"
-version = "0.1.0"
-dependencies = [
- "geo",
- "geo-types",
- "omm-core",
-]
-
-[[package]]
-name = "omm-index"
-version = "0.1.0"
-dependencies = [
- "memmap2 0.9.10",
- "omm-core",
- "omm-osm",
- "rstar 0.12.2",
- "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "omm-osm"
-version = "0.1.0"
-dependencies = [
- "bumpalo",
- "crossbeam-channel",
- "geo",
- "geo-types",
- "lasso",
- "omm-core",
- "omm-geo",
- "osmpbf",
- "rayon",
- "serde",
- "serde_json",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "omm-render"
-version = "0.1.0"
-dependencies = [
- "cosmic-text",
- "geo-types",
- "omm-core",
- "omm-osm",
- "omm-style",
- "tiny-skia 0.12.0",
- "tracing",
-]
-
-[[package]]
-name = "omm-repl"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "geo-types",
- "omm-core",
- "omm-geo",
- "omm-index",
- "omm-osm",
- "omm-tiles",
- "quick-xml 0.39.2",
- "redb",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "omm-serve"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bytes",
- "omm-app",
- "omm-core",
- "omm-style",
- "pmtiles",
- "serde",
- "serde_json",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
-]
-
-[[package]]
-name = "omm-style"
-version = "0.1.0"
-dependencies = [
- "omm-core",
- "omm-osm",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "omm-text"
-version = "0.1.0"
-dependencies = [
- "cosmic-text",
- "omm-core",
- "tracing",
-]
-
-[[package]]
-name = "omm-tiles"
-version = "0.1.0"
-dependencies = [
- "geo",
- "geo-types",
- "mlt-core",
- "mvt",
- "omm-accel",
- "omm-core",
- "omm-geo",
- "omm-index",
- "omm-osm",
- "pmtiles",
- "rayon",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "omm-viewer"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "bytes",
- "clap",
- "cosmic-text",
- "lyon",
- "omm-core",
- "omm-geo",
- "omm-tiles",
- "pmtiles",
- "pollster",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3808,6 +3575,239 @@ checksum = "49203cdcae0030493bad186b28da2fa25645fa276a51b6fec8010d281e02ef79"
 dependencies = [
  "dlv-list",
  "hashbrown 0.14.5",
+]
+
+[[package]]
+name = "osmic"
+version = "0.1.0"
+dependencies = [
+ "osmic-app",
+ "osmic-core",
+ "osmic-geo",
+ "osmic-index",
+ "osmic-osm",
+ "osmic-render",
+ "osmic-serve",
+ "osmic-style",
+ "osmic-text",
+ "osmic-tiles",
+]
+
+[[package]]
+name = "osmic-accel"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "geo",
+ "geo-types",
+ "metal",
+ "osmic-core",
+ "parking_lot",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-app"
+version = "0.1.0"
+dependencies = [
+ "osmic-core",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "osmic-core",
+ "osmic-extract",
+ "osmic-index",
+ "osmic-osm",
+ "osmic-repl",
+ "osmic-serve",
+ "osmic-style",
+ "osmic-tiles",
+ "reqwest 0.12.28",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "osmic-core"
+version = "0.1.0"
+dependencies = [
+ "geo-types",
+ "osmic-geo",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "osmic-extract"
+version = "0.1.0"
+dependencies = [
+ "osmic-core",
+ "osmic-index",
+ "osmic-osm",
+ "osmpbf",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-geo"
+version = "0.1.0"
+dependencies = [
+ "geo",
+ "geo-types",
+ "osmic-core",
+]
+
+[[package]]
+name = "osmic-index"
+version = "0.1.0"
+dependencies = [
+ "memmap2 0.9.10",
+ "osmic-core",
+ "osmic-osm",
+ "rstar 0.12.2",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-osm"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "crossbeam-channel",
+ "geo",
+ "geo-types",
+ "lasso",
+ "osmic-core",
+ "osmic-geo",
+ "osmpbf",
+ "rayon",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-render"
+version = "0.1.0"
+dependencies = [
+ "cosmic-text",
+ "geo-types",
+ "osmic-core",
+ "osmic-osm",
+ "osmic-style",
+ "tiny-skia 0.12.0",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-repl"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "geo-types",
+ "osmic-core",
+ "osmic-geo",
+ "osmic-index",
+ "osmic-osm",
+ "osmic-tiles",
+ "quick-xml 0.39.2",
+ "redb",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-serve"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "osmic-app",
+ "osmic-core",
+ "osmic-style",
+ "pmtiles",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-style"
+version = "0.1.0"
+dependencies = [
+ "osmic-core",
+ "osmic-osm",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "osmic-text"
+version = "0.1.0"
+dependencies = [
+ "cosmic-text",
+ "osmic-core",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-tiles"
+version = "0.1.0"
+dependencies = [
+ "geo",
+ "geo-types",
+ "mlt-core",
+ "mvt",
+ "osmic-accel",
+ "osmic-core",
+ "osmic-geo",
+ "osmic-index",
+ "osmic-osm",
+ "pmtiles",
+ "rayon",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "osmic-viewer"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "bytes",
+ "clap",
+ "cosmic-text",
+ "lyon",
+ "osmic-core",
+ "osmic-geo",
+ "osmic-tiles",
+ "pmtiles",
+ "pollster",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]
@@ -4554,12 +4554,12 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "clap",
- "omm-core",
- "omm-geo",
- "omm-index",
- "omm-osm",
- "omm-render",
- "omm-tiles",
+ "osmic-core",
+ "osmic-geo",
+ "osmic-index",
+ "osmic-osm",
+ "osmic-render",
+ "osmic-tiles",
  "pmtiles",
  "tokio",
  "tracing",
@@ -5587,7 +5587,7 @@ name = "tile-server"
 version = "0.1.0"
 dependencies = [
  "clap",
- "omm-serve",
+ "osmic-serve",
  "tokio",
  "tracing-subscriber",
 ]
