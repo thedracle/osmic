@@ -36,7 +36,7 @@ readme = "README.md"
 [workspace.dependencies]
 # Internal crates — version + path so `cargo publish` resolves via registry
 osmic-core = { version = "0.1.0", path = "crates/osmic-core" }
-osmic-osm = { version = "0.1.0", path = "crates/osmic-osm", default-features = false }
+osmic-osm = { version = "0.1.0", path = "crates/osmic-osm" }
 osmic-geo = { version = "0.1.0", path = "crates/osmic-geo" }
 osmic-index = { version = "0.1.0", path = "crates/osmic-index" }
 osmic-style = { version = "0.1.0", path = "crates/osmic-style" }
