@@ -85,6 +85,9 @@ pub fn write_geojson(entities: &[Entity], path: &Path) -> OsmicResult<()> {
             if !e.tags.is_empty() {
                 props.insert("tags".into(), e.tags.clone().into());
             }
+            for (k, v) in &e.address_parts {
+                props.insert(k.clone(), v.clone().into());
+            }
 
             serde_json::json!({
                 "type": "Feature",

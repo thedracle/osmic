@@ -324,5 +324,6 @@ where
         website: Entity::extract_website(tags),
         operator,
         tags: Entity::format_tags(tags),
+        address_parts: Entity::build_address_parts(tags),
     })
 }

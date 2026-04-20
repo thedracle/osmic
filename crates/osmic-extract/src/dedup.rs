@@ -125,6 +125,7 @@ mod tests {
             website: String::new(),
             operator: String::new(),
             tags: String::new(),
+            address_parts: std::collections::BTreeMap::new(),
         }
     }
 
