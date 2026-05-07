@@ -14,6 +14,7 @@ use tracing::info;
 use osmic_core::bbox::BBox;
 use osmic_core::error::{OsmicError, OsmicResult};
 use osmic_core::geometry::Geometry;
+pub use osmic_core::NodeLocationStore;
 
 use crate::classify;
 use crate::feature::Feature;
@@ -47,12 +48,6 @@ pub struct ProcessedData {
 /// - Pass 3: Relations → assemble multipolygons (future)
 pub struct PbfProcessor {
     pub tag_store: Arc<TagStore>,
-}
-
-/// Trait for node coordinate lookups (abstracts over mmap store).
-pub trait NodeLocationStore: Send + Sync {
-    fn set(&self, node_id: i64, lon: f64, lat: f64);
-    fn get(&self, node_id: i64) -> Option<osmic_core::LonLat>;
 }
 
 impl PbfProcessor {

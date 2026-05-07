@@ -1293,9 +1293,9 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
 name = "custom-plugin"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
- "osmic-core",
+ "osmic-app",
 ]
 
 [[package]]
@@ -2821,7 +2821,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "load-pbf"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "osmic-core",
@@ -3579,7 +3579,7 @@ dependencies = [
 
 [[package]]
 name = "osmic"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "osmic-app",
  "osmic-core",
@@ -3595,7 +3595,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-accel"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cc",
  "geo",
@@ -3609,7 +3609,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "osmic-core",
  "tracing",
@@ -3617,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "osmic-core",
@@ -3636,7 +3636,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "geo-types",
  "osmic-geo",
@@ -3646,7 +3646,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-extract"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "osmic-core",
  "osmic-index",
@@ -3660,7 +3660,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-geo"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "geo",
  "geo-types",
@@ -3669,7 +3669,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-index"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "memmap2 0.9.10",
  "osmic-core",
@@ -3681,7 +3681,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-osm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bumpalo",
  "crossbeam-channel",
@@ -3700,7 +3700,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-render"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmic-text",
  "geo-types",
@@ -3713,7 +3713,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-repl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flate2",
  "geo-types",
@@ -3733,7 +3733,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-serve"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "bytes",
@@ -3751,7 +3751,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-style"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "osmic-core",
  "osmic-osm",
@@ -3761,7 +3761,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-text"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmic-text",
  "osmic-core",
@@ -3770,7 +3770,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-tiles"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "geo",
  "geo-types",
@@ -3791,7 +3791,7 @@ dependencies = [
 
 [[package]]
 name = "osmic-viewer"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytemuck",
  "bytes",
@@ -4550,14 +4550,12 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "render-static"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "clap",
  "osmic-core",
  "osmic-geo",
- "osmic-index",
- "osmic-osm",
  "osmic-render",
  "osmic-tiles",
  "pmtiles",
@@ -5584,7 +5582,7 @@ dependencies = [
 
 [[package]]
 name = "tile-server"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "osmic-serve",

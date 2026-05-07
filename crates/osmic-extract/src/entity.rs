@@ -158,7 +158,10 @@ mod tests {
             ("addr:postcode", "85040"),
         ]);
         let parts = Entity::build_address_parts(&tags);
-        assert_eq!(parts.get("addr_housenumber").map(String::as_str), Some("39"));
+        assert_eq!(
+            parts.get("addr_housenumber").map(String::as_str),
+            Some("39")
+        );
         assert_eq!(
             parts.get("addr_street").map(String::as_str),
             Some("East Southern Avenue")
@@ -251,7 +254,10 @@ mod tests {
         };
         let v: serde_json::Value = serde_json::to_value(&entity).unwrap();
         let obj = v.as_object().unwrap();
-        assert_eq!(obj.get("addr_city").and_then(|x| x.as_str()), Some("Phoenix"));
+        assert_eq!(
+            obj.get("addr_city").and_then(|x| x.as_str()),
+            Some("Phoenix")
+        );
         assert_eq!(obj.get("addr_state").and_then(|x| x.as_str()), Some("AZ"));
         assert_eq!(
             obj.get("addr_housenumber").and_then(|x| x.as_str()),

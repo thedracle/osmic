@@ -6,7 +6,7 @@ use memmap2::{MmapMut, MmapOptions};
 use tracing::info;
 
 use osmic_core::coord::{LonLat, PackedCoord};
-use osmic_osm::pipeline::NodeLocationStore;
+use osmic_core::NodeLocationStore;
 
 const PACKED_COORD_SIZE: usize = std::mem::size_of::<PackedCoord>(); // 8 bytes
 

@@ -140,7 +140,7 @@ pub fn assemble_multipolygon(
     }
 
     // ── Phase 5: attach holes back to their outer polygons ────────────
-    for (poly, holes) in outer_polys.iter_mut().zip(inner_by_outer.into_iter()) {
+    for (poly, holes) in outer_polys.iter_mut().zip(inner_by_outer) {
         if holes.is_empty() {
             continue;
         }

@@ -23,7 +23,7 @@ use osmic_osm::tags::Tags;
 use crate::coord::TileTransform;
 use crate::encode::{TileEncoder, TileFeature};
 
-#[cfg(feature = "native")]
+#[cfg(target_os = "macos")]
 type PendingGpuBatch = (
     osmic_accel::metal::accelerator::PendingBatch,
     Vec<osmic_core::tile::TileCoord>,

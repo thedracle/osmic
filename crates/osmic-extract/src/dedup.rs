@@ -90,10 +90,10 @@ fn find_merge_target(kept: &[Entity], candidate: &Entity, radius_meters: f64) ->
     for (i, existing) in kept.iter().enumerate() {
         match (existing.lat, existing.lon, candidate.lat, candidate.lon) {
             // Both have coordinates — merge only if within radius
-            (Some(elat), Some(elon), Some(clat), Some(clon)) => {
-                if haversine_meters(elat, elon, clat, clon) < radius_meters {
-                    return Some(i);
-                }
+            (Some(elat), Some(elon), Some(clat), Some(clon))
+                if haversine_meters(elat, elon, clat, clon) < radius_meters =>
+            {
+                return Some(i);
             }
             // Both lack coordinates — collapse same-name
             (None, _, None, _) | (_, None, _, None)

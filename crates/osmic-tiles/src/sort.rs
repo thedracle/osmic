@@ -15,6 +15,8 @@ use std::collections::BinaryHeap;
 use std::fs::{self, File};
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // ── Sort key ─────────────────────────────────────────────────────────────────
 
@@ -33,6 +35,7 @@ pub fn tile_sort_key(zoom: u8, x: u32, y: u32) -> u64 {
 //   8 bytes  u64   feature index (usize cast to u64, little-endian)
 
 const RECORD_SIZE: usize = 16;
+static NEXT_SORTER_ID: AtomicU64 = AtomicU64::new(0);
 
 fn write_record(w: &mut impl Write, key: u64, idx: usize) -> io::Result<()> {
     w.write_all(&key.to_le_bytes())?;
@@ -63,6 +66,7 @@ fn read_record(r: &mut impl Read) -> io::Result<Option<(u64, usize)>> {
 /// all chunks in sorted order using a min-heap.
 pub struct ExternalFeatureSort {
     tmp_dir: PathBuf,
+    file_prefix: String,
     chunk_size: usize,
     /// In-memory buffer for the current chunk.
     buffer: Vec<(u64, usize)>,
@@ -79,8 +83,20 @@ impl ExternalFeatureSort {
     /// - `chunk_size`: number of records to sort in memory at once.
     ///   A record is 16 bytes, so `chunk_size = 1_000_000` uses ~16 MB.
     pub fn new(tmp_dir: &Path, chunk_size: usize) -> Self {
+        let sorter_id = NEXT_SORTER_ID.fetch_add(1, Ordering::Relaxed);
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+
         Self {
             tmp_dir: tmp_dir.to_path_buf(),
+            file_prefix: format!(
+                "osmic_sort_chunk_{}_{}_{}",
+                std::process::id(),
+                timestamp,
+                sorter_id
+            ),
             chunk_size,
             buffer: Vec::with_capacity(chunk_size),
             chunk_files: Vec::new(),
@@ -107,9 +123,10 @@ impl ExternalFeatureSort {
 
         self.buffer.sort_unstable_by_key(|&(k, _)| k);
 
-        let path = self
-            .tmp_dir
-            .join(format!("osmic_sort_chunk_{:06}.bin", self.chunk_counter));
+        let path = self.tmp_dir.join(format!(
+            "{}_{:06}.bin",
+            self.file_prefix, self.chunk_counter
+        ));
         self.chunk_counter += 1;
 
         {
@@ -259,6 +276,18 @@ impl Iterator for SortedIterator {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
+
+    fn test_tmp_dir(name: &str) -> PathBuf {
+        let id = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
+        let tmp =
+            std::env::temp_dir().join(format!("osmic_sort_{name}_{}_{}", std::process::id(), id));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).expect("create test tmp dir");
+        tmp
+    }
 
     #[test]
     fn sort_key_ordering() {
@@ -272,8 +301,7 @@ mod tests {
 
     #[test]
     fn external_sort_single_chunk() {
-        let tmp = std::env::temp_dir().join("osmic_sort_test_single");
-        let _ = fs::create_dir_all(&tmp);
+        let tmp = test_tmp_dir("single");
 
         let mut sorter = ExternalFeatureSort::new(&tmp, 1000);
         let pairs: Vec<(u64, usize)> = vec![
@@ -299,8 +327,7 @@ mod tests {
 
     #[test]
     fn external_sort_multi_chunk() {
-        let tmp = std::env::temp_dir().join("osmic_sort_test_multi");
-        let _ = fs::create_dir_all(&tmp);
+        let tmp = test_tmp_dir("multi");
 
         // chunk_size=3 forces multiple flushes for 10 records
         let mut sorter = ExternalFeatureSort::new(&tmp, 3);
@@ -320,8 +347,7 @@ mod tests {
 
     #[test]
     fn temp_files_cleaned_up() {
-        let tmp = std::env::temp_dir().join("osmic_sort_test_cleanup");
-        let _ = fs::create_dir_all(&tmp);
+        let tmp = test_tmp_dir("cleanup");
 
         let mut sorter = ExternalFeatureSort::new(&tmp, 2);
         for i in 0..6usize {
@@ -345,5 +371,22 @@ mod tests {
             remaining.is_empty(),
             "temp files must be deleted after iteration"
         );
+    }
+
+    #[test]
+    fn independent_sorters_can_share_tmp_dir() {
+        let tmp = test_tmp_dir("shared");
+
+        let mut first = ExternalFeatureSort::new(&tmp, 1);
+        let mut second = ExternalFeatureSort::new(&tmp, 1);
+
+        first.add(tile_sort_key(1, 1, 0), 11).unwrap();
+        second.add(tile_sort_key(1, 2, 0), 22).unwrap();
+
+        let first_result: Vec<_> = first.finish().unwrap().collect();
+        let second_result: Vec<_> = second.finish().unwrap().collect();
+
+        assert_eq!(first_result, vec![(tile_sort_key(1, 1, 0), 11)]);
+        assert_eq!(second_result, vec![(tile_sort_key(1, 2, 0), 22)]);
     }
 }

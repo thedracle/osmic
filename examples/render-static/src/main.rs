@@ -16,17 +16,17 @@ use osmic_tiles::mvt_decode::{self, DecodedFeature};
 #[derive(Parser)]
 #[command(name = "render-static", about = "Render a map region to a styled PNG")]
 struct Args {
-    /// Input file (.pmtiles or .osm.pbf)
+    /// Input PMTiles file
     input: PathBuf,
 
     /// Output PNG file
     output: PathBuf,
 
-    /// Bounding box: min_lon,min_lat,max_lon,max_lat (required for PMTiles)
+    /// Bounding box: min_lon,min_lat,max_lon,max_lat
     #[arg(long, allow_hyphen_values = true)]
     bbox: String,
 
-    /// Zoom level for tile fetching (PMTiles mode)
+    /// Zoom level for tile fetching
     #[arg(long, default_value = "12")]
     zoom: u8,
 

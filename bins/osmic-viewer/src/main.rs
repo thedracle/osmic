@@ -1595,45 +1595,47 @@ impl ApplicationHandler for MapApp {
                 }
             }
 
-            WindowEvent::MouseInput { state, button, .. } => {
-                if button == MouseButton::Left {
-                    let was_dragging = self.dragging;
-                    if state == ElementState::Pressed {
-                        self.dragging = true;
-                        self.drag_distance = 0.0;
-                    } else {
-                        self.dragging = false;
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => {
+                let was_dragging = self.dragging;
+                if state == ElementState::Pressed {
+                    self.dragging = true;
+                    self.drag_distance = 0.0;
+                } else {
+                    self.dragging = false;
+                }
+                // Reload tiles when drag ends if we've panned outside loaded area
+                if was_dragging && !self.dragging {
+                    // Click (not drag) — find nearest feature
+                    if self.drag_distance < 5.0 {
+                        self.handle_click(self.last_cursor);
+                        if self.info_panel_dirty {
+                            self.update_label_texture();
+                            self.info_panel_dirty = false;
+                        }
                     }
-                    // Reload tiles when drag ends if we've panned outside loaded area
-                    if was_dragging && !self.dragging {
-                        // Click (not drag) — find nearest feature
-                        if self.drag_distance < 5.0 {
-                            self.handle_click(self.last_cursor);
-                            if self.info_panel_dirty {
-                                self.update_label_texture();
-                                self.info_panel_dirty = false;
-                            }
-                        }
-                        let aspect = self
-                            .gpu
-                            .as_ref()
-                            .map(|g| g.config.width as f64 / g.config.height as f64)
-                            .unwrap_or(1.333);
-                        let view = self.camera.view_bbox(aspect);
-                        // Reload if view extends 30%+ outside loaded area
-                        let margin = self.loaded_bbox.width() * 0.3;
-                        if view.min_lon < self.loaded_bbox.min_lon - margin
-                            || view.max_lon > self.loaded_bbox.max_lon + margin
-                            || view.min_lat < self.loaded_bbox.min_lat - margin
-                            || view.max_lat > self.loaded_bbox.max_lat + margin
-                            || !self.loaded_bbox.is_valid()
-                        {
-                            self.needs_retessellate = true;
-                        }
-                        self.update_label_texture();
-                        if let Some(gpu) = &self.gpu {
-                            gpu.window.request_redraw();
-                        }
+                    let aspect = self
+                        .gpu
+                        .as_ref()
+                        .map(|g| g.config.width as f64 / g.config.height as f64)
+                        .unwrap_or(1.333);
+                    let view = self.camera.view_bbox(aspect);
+                    // Reload if view extends 30%+ outside loaded area
+                    let margin = self.loaded_bbox.width() * 0.3;
+                    if view.min_lon < self.loaded_bbox.min_lon - margin
+                        || view.max_lon > self.loaded_bbox.max_lon + margin
+                        || view.min_lat < self.loaded_bbox.min_lat - margin
+                        || view.max_lat > self.loaded_bbox.max_lat + margin
+                        || !self.loaded_bbox.is_valid()
+                    {
+                        self.needs_retessellate = true;
+                    }
+                    self.update_label_texture();
+                    if let Some(gpu) = &self.gpu {
+                        gpu.window.request_redraw();
                     }
                 }
             }

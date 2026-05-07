@@ -9,12 +9,12 @@ use crate::resource::Resources;
 
 /// The central application container.
 ///
-/// Holds plugins, resources, and the event bus. Follows a build-then-run lifecycle:
+/// Holds plugins, resources, and the event bus. Follows a build lifecycle:
 /// 1. Create `App::new()`
 /// 2. Add plugins via `add_plugin()` / `add_plugins()`
 /// 3. Insert resources via `insert_resource()`
 /// 4. Call `build()` to initialize all plugins
-/// 5. Call `run()` to enter the main loop (if applicable)
+/// 5. Let the owning binary or plugin drive any long-running loop
 pub struct App {
     pub resources: Resources,
     pub event_bus: EventBus,
