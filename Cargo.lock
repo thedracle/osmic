@@ -3650,7 +3650,6 @@ version = "0.1.1"
 dependencies = [
  "osmic-core",
  "osmic-index",
- "osmic-osm",
  "osmpbf",
  "serde",
  "serde_json",

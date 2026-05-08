@@ -139,7 +139,7 @@ impl NodeLocationStore for DenseNodeLocationStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use osmic_osm::pipeline::NodeLocationStore;
+    use osmic_core::NodeLocationStore;
 
     /// Round-trip epsilon: f32 precision is ~1e-7 degrees (< 15 mm at equator).
     const EPSILON: f64 = 1e-5;

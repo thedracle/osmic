@@ -74,6 +74,23 @@ done
 # Move to workspace root (parent of scripts/)
 cd "$(dirname "$0")/.."
 
+WORKSPACE_VERSION="$(
+  awk '
+    /^\[workspace\.package\]$/ { in_workspace_package = 1; next }
+    /^\[/ { in_workspace_package = 0 }
+    in_workspace_package && $1 == "version" {
+      gsub(/"/, "", $3)
+      print $3
+      exit
+    }
+  ' Cargo.toml
+)"
+
+if [[ -z "$WORKSPACE_VERSION" ]]; then
+  echo "failed to read workspace package version from Cargo.toml" >&2
+  exit 1
+fi
+
 # --- helpers ----------------------------------------------------------------
 
 log()  { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
@@ -84,7 +101,7 @@ already_published() {
   # `cargo info --registry crates-io` prints `version: x.y.z` for the latest
   # published version. Anything else (error, empty) means not published.
   cargo info "$crate" --registry crates-io 2>/dev/null \
-    | grep -q '^version: 0\.1\.0'
+    | grep -Fxq "version: $WORKSPACE_VERSION"
 }
 
 wait_for_index() {
@@ -139,7 +156,7 @@ for i in "${!CRATES[@]}"; do
   fi
 
   # Throttle before publishing (not after) so resume semantics are clean.
-  if (( published_this_run > 0 )); then
+  if (( DRY_RUN == 0 && published_this_run > 0 )); then
     if (( NO_BURST )) || (( published_this_run >= BURST_SIZE )); then
       log "Sleeping ${THROTTLE_SECONDS}s to respect the 1-per-10-minute rate limit..."
       sleep "$THROTTLE_SECONDS"

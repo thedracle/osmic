@@ -8,9 +8,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use osmic_core::error::{OsmicError, OsmicResult};
-use osmic_core::LonLat;
+use osmic_core::{LonLat, NodeLocationStore};
 use osmic_index::RamNodeLocationStore;
-use osmic_osm::pipeline::NodeLocationStore;
 use osmpbf::{Element, ElementReader};
 use tracing::info;
 
