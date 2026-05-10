@@ -1063,6 +1063,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "contour"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43f49a660700a72e88a50e56af0f39fcb986aca2f7c031ffada53da46693869b"
+dependencies = [
+ "geo-types",
+ "lazy_static",
+ "rustc-hash 1.1.0",
+ "slab",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3620,6 +3632,7 @@ name = "osmic-cli"
 version = "0.1.1"
 dependencies = [
  "clap",
+ "osmic-compact",
  "osmic-core",
  "osmic-extract",
  "osmic-index",
@@ -3632,6 +3645,21 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "osmic-compact"
+version = "0.1.1"
+dependencies = [
+ "contour",
+ "geo",
+ "geo-types",
+ "osmic-core",
+ "osmic-geo",
+ "osmic-osm",
+ "srtm_reader",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
@@ -5341,6 +5369,12 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "srtm_reader"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b913ef6704c209873fdc6c0451f09ec52e238ed1a431b3ed3fab78599339cdf"
 
 [[package]]
 name = "stable_deref_trait"

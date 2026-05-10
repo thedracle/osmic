@@ -25,6 +25,7 @@ osmic-tiles = { workspace = true }
 osmic-repl = { workspace = true }
 osmic-serve = { workspace = true }
 osmic-style = { workspace = true }
+osmic-compact = { workspace = true, features = ["contours"] }
 reqwest = { version = "0.12", features = ["blocking"] }
 clap = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -25,6 +25,7 @@ impl LayerSet {
     pub const CLUB: u32 = 1 << 16;
     pub const EMERGENCY: u32 = 1 << 17;
     pub const EDUCATION: u32 = 1 << 18;
+    pub const CONTOUR: u32 = 1 << 19;
 
     const NAME_MAP: &[(&'static str, u32)] = &[
         ("highway", Self::HIGHWAY),
@@ -46,11 +47,12 @@ impl LayerSet {
         ("club", Self::CLUB),
         ("emergency", Self::EMERGENCY),
         ("education", Self::EDUCATION),
+        ("contour", Self::CONTOUR),
     ];
 
     /// All layers enabled.
     pub fn all() -> Self {
-        Self(0x7FFFF) // 19 bits
+        Self(0xFFFFF) // 20 bits
     }
 
     /// No layers enabled.

@@ -126,5 +126,6 @@ pub fn z_order(kind: &FeatureKind) -> i32 {
         FeatureKind::Emergency(_) => 112,
         FeatureKind::Education(_) => 113,
         FeatureKind::Place(_) => 200,
+        FeatureKind::Contour(_) => 15,
     }
 }

@@ -740,6 +740,8 @@ pub enum FeatureKind {
     Education(EducationKind),
     Boundary(BoundaryKind),
     Place(PlaceKind),
+    /// Elevation contour line. The `u16` holds elevation in meters.
+    Contour(u16),
 }
 
 impl FeatureKind {
@@ -796,6 +798,7 @@ impl FeatureKind {
                         | WaterKind::Drain
                         | WaterKind::Ditch
                 )
+                | FeatureKind::Contour(_)
         )
     }
 }
@@ -1223,6 +1226,7 @@ impl FeatureKind {
             Self::Education(_) => "education",
             Self::Boundary(_) => "boundary",
             Self::Place(_) => "place",
+            Self::Contour(_) => "contour",
         }
     }
 
@@ -1248,6 +1252,15 @@ impl FeatureKind {
             Self::Education(k) => k.as_str(),
             Self::Boundary(k) => k.as_str(),
             Self::Place(k) => k.as_str(),
+            Self::Contour(elev) => {
+                if *elev % 100 == 0 {
+                    "major"
+                } else if *elev % 50 == 0 {
+                    "intermediate"
+                } else {
+                    "minor"
+                }
+            }
         }
     }
 
@@ -1309,6 +1322,15 @@ impl FeatureKind {
                 _ => 12,
             },
             Self::Boundary(_) => 2,
+            Self::Contour(elev) => {
+                if *elev % 100 == 0 {
+                    10 // major contours visible from zoom 10
+                } else if *elev % 50 == 0 {
+                    12 // intermediate contours
+                } else {
+                    14 // minor contours
+                }
+            }
             Self::Place(p) => match p {
                 PlaceKind::City => 4,
                 PlaceKind::Town => 7,

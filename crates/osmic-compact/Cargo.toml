@@ -1,0 +1,29 @@
+[package]
+name = "osmic-compact"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme.workspace = true
+description = "Compact monochrome vector map format for embedded GPS devices"
+
+[dependencies]
+osmic-core = { workspace = true }
+osmic-osm = { workspace = true, default-features = false }
+osmic-geo = { workspace = true }
+
+geo = { workspace = true }
+geo-types = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Contour generation (optional)
+srtm_reader = { version = "0.5", optional = true }
+contour = { version = "0.13", optional = true }
+
+[features]
+default = ["contours"]
+contours = ["srtm_reader", "contour"]

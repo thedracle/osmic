@@ -180,6 +180,43 @@ enum Commands {
         cache_max_age: u32,
     },
 
+    /// Generate a compact trail map blob for embedded GPS devices (e.g., Garmin Instinct)
+    CompactArea {
+        /// Input PBF file
+        pbf_file: PathBuf,
+
+        /// Output .bin file (CompactTrailBlob)
+        output: PathBuf,
+
+        /// Bounding box: min_lon,min_lat,max_lon,max_lat
+        #[arg(long, short)]
+        bbox: String,
+
+        /// SRTM .hgt file for contour generation (optional)
+        #[arg(long)]
+        dem: Option<PathBuf>,
+
+        /// Display width in pixels
+        #[arg(long, default_value = "176")]
+        width: u8,
+
+        /// Display height in pixels
+        #[arg(long, default_value = "176")]
+        height: u8,
+
+        /// Contour interval in meters
+        #[arg(long, default_value = "20")]
+        contour_interval: u8,
+
+        /// Path for node location store (temporary mmap file)
+        #[arg(long, default_value = "/tmp/osmic-nodes.bin")]
+        node_store: PathBuf,
+
+        /// Maximum expected node ID
+        #[arg(long, default_value = "13000000000")]
+        max_node_id: i64,
+    },
+
     /// Apply OSM replication diffs to update tiles incrementally
     Update {
         /// State directory for replication tracking
@@ -284,6 +321,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 require_name,
                 bbox.as_deref(),
                 dedup_radius,
+                &node_store,
+                max_node_id,
+            )?;
+        }
+        Commands::CompactArea {
+            pbf_file,
+            output,
+            bbox,
+            dem,
+            width,
+            height,
+            contour_interval,
+            node_store,
+            max_node_id,
+        } => {
+            compact_area(
+                &pbf_file,
+                &output,
+                &bbox,
+                dem.as_deref(),
+                width,
+                height,
+                contour_interval,
                 &node_store,
                 max_node_id,
             )?;
@@ -851,6 +911,99 @@ fn update_from_replication(
     state.sequence_number += 1;
     state.save(state_dir)?;
     println!("State updated to sequence {}", state.sequence_number);
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compact_area(
+    pbf_file: &std::path::Path,
+    output: &std::path::Path,
+    bbox_str: &str,
+    dem: Option<&std::path::Path>,
+    width: u8,
+    height: u8,
+    contour_interval: u8,
+    node_store_path: &std::path::Path,
+    max_node_id: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use osmic_compact::AreaBuilder;
+
+    println!("=== Osmic - Compact Trail Map ===");
+    println!("Input:  {}", pbf_file.display());
+    println!("Output: {}", output.display());
+    println!("Size:   {}x{}", width, height);
+
+    if !pbf_file.exists() {
+        eprintln!("Error: PBF file not found: {}", pbf_file.display());
+        std::process::exit(1);
+    }
+
+    // Parse bbox
+    let parts: Vec<f64> = bbox_str
+        .split(',')
+        .filter_map(|p| p.trim().parse().ok())
+        .collect();
+    if parts.len() != 4 {
+        eprintln!("Error: bbox must be min_lon,min_lat,max_lon,max_lat");
+        std::process::exit(1);
+    }
+    let bbox = osmic_core::BBox {
+        min_lon: parts[0],
+        min_lat: parts[1],
+        max_lon: parts[2],
+        max_lat: parts[3],
+    };
+    println!("BBox:   {}", bbox);
+
+    // Process PBF
+    let total_start = Instant::now();
+    let _ = node_store_path;
+    let node_store = RamNodeLocationStore::create(max_node_id)?;
+    let processor = PbfProcessor::new();
+    let result = processor.process(pbf_file, &node_store, &LayerSet::all())?;
+
+    println!(
+        "PBF processed: {} features in {:.1}s",
+        format_number(result.features.len() as u64),
+        result.stats.total_duration.as_secs_f64()
+    );
+
+    // Generate contours if DEM provided
+    let contour_features = if let Some(dem_path) = dem {
+        println!("Generating contours from: {}", dem_path.display());
+        match osmic_compact::contour::generate_contours(dem_path, &bbox, contour_interval as u16) {
+            Ok(features) => {
+                println!("Generated {} contour lines", features.len());
+                features
+            }
+            Err(e) => {
+                eprintln!("Warning: contour generation failed: {e}");
+                vec![]
+            }
+        }
+    } else {
+        vec![]
+    };
+
+    // Build compact blob
+    let builder = AreaBuilder {
+        display_width: width,
+        display_height: height,
+        contour_interval,
+    };
+    let blob = builder.build(&result.features, &bbox, &result.tag_store, &contour_features);
+
+    // Write output
+    std::fs::write(output, &blob)?;
+
+    println!(
+        "\nCompact blob: {} bytes ({:.1} KB) in {:.1}s",
+        blob.len(),
+        blob.len() as f64 / 1024.0,
+        total_start.elapsed().as_secs_f64()
+    );
+    println!("Output: {}", output.display());
 
     Ok(())
 }
