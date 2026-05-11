@@ -1,9 +1,10 @@
 use geo_types::{LineString, MultiPolygon, Point, Polygon};
+use serde::{Deserialize, Serialize};
 
 use crate::bbox::BBox;
 
 /// Unified geometry enum for OSM features.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Geometry {
     Point(Point<f64>),
     Line(LineString<f64>),

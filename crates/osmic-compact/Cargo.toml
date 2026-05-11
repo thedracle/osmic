@@ -17,6 +17,8 @@ osmic-geo = { workspace = true }
 
 geo = { workspace = true }
 geo-types = { workspace = true }
+serde = { workspace = true }
+bincode = "1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

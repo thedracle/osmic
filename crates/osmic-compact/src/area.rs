@@ -163,6 +163,114 @@ impl AreaBuilder {
 
         blob
     }
+
+    /// Build a compact trail blob from a pre-filtered subset of features.
+    /// `indices` are the feature indices from an R-tree bbox query — avoids
+    /// scanning all features linearly.
+    pub fn build_subset(
+        &self,
+        features: &[Feature],
+        indices: &[usize],
+        bbox: &BBox,
+        tag_store: &TagStore,
+        contour_features: &[Feature],
+    ) -> Vec<u8> {
+        let projector = PixelProjector::new(bbox, self.display_width, self.display_height);
+        let lon_range = bbox.max_lon - bbox.min_lon;
+        let tolerance = lon_range / (self.display_width as f64 / 2.0);
+
+        let name_key = tag_store.get("name");
+        let ele_key = tag_store.get("ele");
+
+        let mut feature_buf = Vec::new();
+        let mut poi_buf = Vec::new();
+        let mut feature_count: u32 = 0;
+        let mut poi_count: u32 = 0;
+        let mut poi_cells: Vec<(u8, u8, u8)> = Vec::new();
+
+        // Iterate only the pre-filtered features + contour features
+        let subset_iter = indices.iter().map(|&i| &features[i]);
+        let all_features = subset_iter.chain(contour_features.iter());
+
+        for feature in all_features {
+            if !is_trail_relevant(&feature.kind) {
+                continue;
+            }
+            if !feature_bbox_intersects(&feature.geometry, bbox) {
+                continue;
+            }
+
+            if is_poi(&feature.kind) {
+                if let Geometry::Point(pt) = &feature.geometry {
+                    let name = name_key
+                        .and_then(|k| feature.tags.get(k))
+                        .map(|v| tag_store.resolve(v))
+                        .unwrap_or("");
+                    if name.is_empty() {
+                        continue;
+                    }
+                    let (px, py) = projector.project(pt.x(), pt.y());
+                    let cell = (
+                        px / POI_DEDUP_CELL_PX,
+                        py / POI_DEDUP_CELL_PX,
+                        to_poi_type(&feature.kind) as u8,
+                    );
+                    if poi_cells.contains(&cell) {
+                        continue;
+                    }
+                    let elevation = ele_key
+                        .and_then(|k| feature.tags.get(k))
+                        .map(|v| tag_store.resolve(v))
+                        .and_then(parse_elevation_meters)
+                        .unwrap_or(0);
+                    encode_poi(
+                        &feature.kind,
+                        pt.x(),
+                        pt.y(),
+                        elevation,
+                        name,
+                        &projector,
+                        &mut poi_buf,
+                    );
+                    poi_cells.push(cell);
+                    poi_count += 1;
+                }
+                continue;
+            }
+
+            let simplified = simplify_geometry(&feature.geometry, tolerance);
+            let count = encode_geometry(&feature.kind, &simplified, &projector, &mut feature_buf);
+            feature_count += count;
+        }
+
+        let header = CompactHeader {
+            version: VERSION,
+            display_width: self.display_width,
+            display_height: self.display_height,
+            contour_interval: self.contour_interval,
+            bbox_min_lon: (bbox.min_lon * 1_000_000.0) as i32,
+            bbox_min_lat: (bbox.min_lat * 1_000_000.0) as i32,
+            bbox_max_lon: (bbox.max_lon * 1_000_000.0) as i32,
+            bbox_max_lat: (bbox.max_lat * 1_000_000.0) as i32,
+            feature_count: feature_count.min(u16::MAX as u32) as u16,
+            poi_count: poi_count.min(u16::MAX as u32) as u16,
+        };
+
+        let mut blob = Vec::with_capacity(32 + feature_buf.len() + poi_buf.len());
+        blob.extend_from_slice(&header.to_bytes());
+        blob.extend_from_slice(&feature_buf);
+        blob.extend_from_slice(&poi_buf);
+
+        tracing::info!(
+            features = feature_count,
+            pois = poi_count,
+            bytes = blob.len(),
+            subset_size = indices.len(),
+            "compact trail blob built (indexed)"
+        );
+
+        blob
+    }
 }
 
 /// Parse an OSM `ele` tag value into integer meters, clamped to `u16`.

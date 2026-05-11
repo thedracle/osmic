@@ -18,6 +18,7 @@ members = [
     "crates/osmic-compact",
     "bins/osmic-cli",
     "bins/osmic-viewer",
+    "bins/osmic-trail-server",
     "examples/load-pbf",
     "examples/render-static",
     "examples/tile-server",

@@ -3651,12 +3651,14 @@ dependencies = [
 name = "osmic-compact"
 version = "0.1.1"
 dependencies = [
+ "bincode",
  "contour",
  "geo",
  "geo-types",
  "osmic-core",
  "osmic-geo",
  "osmic-osm",
+ "serde",
  "srtm_reader",
  "thiserror 2.0.18",
  "tracing",
@@ -3814,6 +3816,25 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
+]
+
+[[package]]
+name = "osmic-trail-server"
+version = "0.1.1"
+dependencies = [
+ "axum",
+ "clap",
+ "osmic-compact",
+ "osmic-core",
+ "osmic-index",
+ "osmic-osm",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
