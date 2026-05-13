@@ -29,6 +29,7 @@ pub enum HighwayKind {
     Corridor,
     Path,
     Cycleway,
+    Trailhead,
     Other,
 }
 
@@ -58,6 +59,7 @@ impl HighwayKind {
             "corridor" => Self::Corridor,
             "path" => Self::Path,
             "cycleway" => Self::Cycleway,
+            "trailhead" => Self::Trailhead,
             _ => Self::Other,
         }
     }
@@ -216,6 +218,7 @@ pub enum NaturalKind {
     Cliff,
     Peak,
     Volcano,
+    Saddle,
     Tree,
     Coastline,
     Other,
@@ -237,6 +240,7 @@ impl NaturalKind {
             "cliff" => Self::Cliff,
             "peak" => Self::Peak,
             "volcano" => Self::Volcano,
+            "saddle" | "col" => Self::Saddle,
             "tree" => Self::Tree,
             "coastline" => Self::Coastline,
             _ => Self::Other,
@@ -846,6 +850,7 @@ impl HighwayKind {
             Self::Corridor => "corridor",
             Self::Path => "path",
             Self::Cycleway => "cycleway",
+            Self::Trailhead => "trailhead",
             Self::Other => "other",
         }
     }
@@ -938,6 +943,7 @@ impl NaturalKind {
             Self::Cliff => "cliff",
             Self::Peak => "peak",
             Self::Volcano => "volcano",
+            Self::Saddle => "saddle",
             Self::Tree => "tree",
             Self::Coastline => "coastline",
             Self::Other => "other",

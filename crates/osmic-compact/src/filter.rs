@@ -9,7 +9,9 @@ use crate::format::{FeatureCategory, PoiType};
 pub fn is_trail_relevant(kind: &FeatureKind) -> bool {
     matches!(
         kind,
-        // Trails, paths, and major roads for navigation context
+        // Trails and roads for navigation context.
+        // Footway is included here but sidewalks (footway=sidewalk) are filtered
+        // out at encoding time in area.rs where we have access to the full tags.
         FeatureKind::Highway(
             HighwayKind::Path
                 | HighwayKind::Footway
@@ -17,6 +19,7 @@ pub fn is_trail_relevant(kind: &FeatureKind) -> bool {
                 | HighwayKind::Bridleway
                 | HighwayKind::Cycleway
                 | HighwayKind::Steps
+                | HighwayKind::Trailhead
                 | HighwayKind::Motorway
                 | HighwayKind::Trunk
                 | HighwayKind::Primary
@@ -26,10 +29,11 @@ pub fn is_trail_relevant(kind: &FeatureKind) -> bool {
                 | HighwayKind::Unclassified
                 | HighwayKind::Service
         ) | FeatureKind::Water(_)
-            | FeatureKind::Natural(_)
-            | FeatureKind::Landuse(LanduseKind::Forest | LanduseKind::Meadow | LanduseKind::Grass)
-            | FeatureKind::Leisure(LeisureKind::Park | LeisureKind::NatureReserve)
+            // Natural points (peaks, etc.) included; natural area polygons excluded
+            // (they consume 70%+ of blob space and are skipped by the watch renderer)
+            | FeatureKind::Natural(NaturalKind::Peak | NaturalKind::Volcano | NaturalKind::Cliff | NaturalKind::Saddle)
             | FeatureKind::Boundary(BoundaryKind::NationalPark | BoundaryKind::Protected)
+            // Only major contours — minors are skipped by the watch renderer
             | FeatureKind::Contour(_)
             | FeatureKind::Place(
                 PlaceKind::City | PlaceKind::Town | PlaceKind::Village | PlaceKind::Hamlet
@@ -48,7 +52,8 @@ pub fn is_trail_relevant(kind: &FeatureKind) -> bool {
 pub fn is_poi(kind: &FeatureKind) -> bool {
     matches!(
         kind,
-        FeatureKind::Natural(NaturalKind::Peak | NaturalKind::Volcano | NaturalKind::Cliff)
+        FeatureKind::Natural(NaturalKind::Peak | NaturalKind::Volcano | NaturalKind::Cliff | NaturalKind::Saddle)
+            | FeatureKind::Highway(HighwayKind::Trailhead)
             | FeatureKind::Tourism(
                 TourismKind::CampSite
                     | TourismKind::Viewpoint
@@ -121,10 +126,34 @@ pub fn to_subcategory(kind: &FeatureKind) -> u8 {
     }
 }
 
+/// Returns true if this highway kind is important enough to receive a label.
+/// Residential/service/unclassified streets are too dense to label on 176px.
+pub fn is_labelable(kind: &FeatureKind) -> bool {
+    matches!(
+        kind,
+        // Named trails always get labels
+        FeatureKind::Highway(
+            HighwayKind::Path
+                | HighwayKind::Track
+                | HighwayKind::Bridleway
+                | HighwayKind::Cycleway
+        )
+        // Only label roads that are secondary or above
+        | FeatureKind::Highway(
+            HighwayKind::Motorway
+                | HighwayKind::Trunk
+                | HighwayKind::Primary
+                | HighwayKind::Secondary
+                | HighwayKind::Tertiary
+        )
+    )
+}
+
 /// Map a FeatureKind to a POI type.
 pub fn to_poi_type(kind: &FeatureKind) -> PoiType {
     match kind {
         FeatureKind::Natural(NaturalKind::Peak | NaturalKind::Volcano) => PoiType::Peak,
+        FeatureKind::Highway(HighwayKind::Trailhead) => PoiType::Trailhead,
         FeatureKind::Tourism(TourismKind::CampSite) => PoiType::CampSite,
         FeatureKind::Tourism(TourismKind::Viewpoint) => PoiType::Viewpoint,
         FeatureKind::Tourism(TourismKind::PicnicSite) => PoiType::PicnicSite,
@@ -143,8 +172,21 @@ mod tests {
     #[test]
     fn trail_paths_are_relevant() {
         assert!(is_trail_relevant(&FeatureKind::Highway(HighwayKind::Path)));
-        assert!(is_trail_relevant(&FeatureKind::Highway(HighwayKind::Footway)));
         assert!(is_trail_relevant(&FeatureKind::Highway(HighwayKind::Track)));
+    }
+
+    #[test]
+    fn footways_included() {
+        // Footways are relevant (hiking trails); sidewalks filtered by tag in area.rs
+        assert!(is_trail_relevant(&FeatureKind::Highway(HighwayKind::Footway)));
+    }
+
+    #[test]
+    fn label_eligibility() {
+        assert!(is_labelable(&FeatureKind::Highway(HighwayKind::Path)));
+        assert!(is_labelable(&FeatureKind::Highway(HighwayKind::Secondary)));
+        assert!(!is_labelable(&FeatureKind::Highway(HighwayKind::Residential)));
+        assert!(!is_labelable(&FeatureKind::Highway(HighwayKind::Service)));
     }
 
     #[test]

@@ -6,14 +6,17 @@
 /// Magic bytes identifying a CompactTrailBlob.
 pub const MAGIC: [u8; 4] = *b"TMAP";
 
-/// Current format version.
-pub const VERSION: u8 = 1;
+/// Current format version (3 = variable bit-width delta encoding).
+pub const VERSION: u8 = 3;
 
 /// Size of the fixed header in bytes.
 pub const HEADER_SIZE: usize = 32;
 
-/// Maximum name length for POIs (bytes, UTF-8).
+/// Maximum name length for POIs and labels (bytes, UTF-8).
 pub const MAX_POI_NAME_LEN: usize = 32;
+
+/// Maximum name length for road/trail labels.
+pub const MAX_LABEL_NAME_LEN: usize = 24;
 
 /// Feature categories encoded in the type byte (bits 6-4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +62,7 @@ pub struct CompactHeader {
     pub bbox_max_lat: i32,
     pub feature_count: u16,
     pub poi_count: u16,
+    pub label_count: u16,
 }
 
 impl CompactHeader {
@@ -76,7 +80,8 @@ impl CompactHeader {
         buf[20..24].copy_from_slice(&self.bbox_max_lat.to_be_bytes());
         buf[24..26].copy_from_slice(&self.feature_count.to_be_bytes());
         buf[26..28].copy_from_slice(&self.poi_count.to_be_bytes());
-        // bytes 28..32 are reserved (zeroed)
+        buf[28..30].copy_from_slice(&self.label_count.to_be_bytes());
+        // bytes 30..32 reserved
         buf
     }
 
@@ -96,6 +101,7 @@ impl CompactHeader {
             bbox_max_lat: i32::from_be_bytes([buf[20], buf[21], buf[22], buf[23]]),
             feature_count: u16::from_be_bytes([buf[24], buf[25]]),
             poi_count: u16::from_be_bytes([buf[26], buf[27]]),
+            label_count: u16::from_be_bytes([buf[28], buf[29]]),
         })
     }
 }
@@ -132,6 +138,7 @@ mod tests {
             bbox_max_lat: 40_650_000,
             feature_count: 150,
             poi_count: 12,
+            label_count: 5,
         };
         let bytes = header.to_bytes();
         let decoded = CompactHeader::from_bytes(&bytes).unwrap();

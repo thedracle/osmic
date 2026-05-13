@@ -9,7 +9,7 @@ use osmic_osm::feature::Feature;
 use osmic_osm::tags::TagStore;
 
 use crate::encoder::{encode_geometry, encode_poi, PixelProjector};
-use crate::filter::{is_poi, is_trail_relevant, to_poi_type};
+use crate::filter::{is_labelable, is_poi, is_trail_relevant, to_category, to_poi_type};
 use crate::format::{CompactHeader, VERSION};
 
 /// Pixel grid size for POI deduplication. POIs of the same type that hash to the
@@ -68,12 +68,17 @@ impl AreaBuilder {
 
         let name_key = tag_store.get("name");
         let ele_key = tag_store.get("ele");
+        let footway_key = tag_store.get("footway");
 
         let mut feature_buf = Vec::new();
         let mut poi_buf = Vec::new();
         let mut feature_count: u32 = 0;
         let mut poi_count: u32 = 0;
         let mut poi_cells: Vec<(u8, u8, u8)> = Vec::new();
+
+        let mut label_buf = Vec::new();
+        let mut label_count: u32 = 0;
+        let mut label_cells: std::collections::HashSet<(u8, u8)> = std::collections::HashSet::new();
 
         // Process OSM features + contour features together
         let all_features = features.iter().chain(contour_features.iter());
@@ -82,14 +87,24 @@ impl AreaBuilder {
             if !is_trail_relevant(&feature.kind) {
                 continue;
             }
+            // Skip urban sidewalks and crossings — they run parallel to every
+            // road and create visual noise. Actual hiking footways won't have
+            // these subtags.
+            if matches!(feature.kind, osmic_osm::FeatureKind::Highway(osmic_osm::feature::HighwayKind::Footway)) {
+                if let Some(fk) = footway_key {
+                    if let Some(val) = feature.tags.get(fk) {
+                        let v = tag_store.resolve(val);
+                        if v == "sidewalk" || v == "crossing" {
+                            continue;
+                        }
+                    }
+                }
+            }
             if !feature_bbox_intersects(&feature.geometry, bbox) {
                 continue;
             }
 
             if is_poi(&feature.kind) {
-                // Encode as POI — but only if it has a name. An unlabeled dot on a
-                // 176×176 watch is just noise; OSM has many small Cliff/Information
-                // POIs without names that aren't useful at this scale.
                 if let Geometry::Point(pt) = &feature.geometry {
                     let name = name_key
                         .and_then(|k| feature.tags.get(k))
@@ -130,9 +145,38 @@ impl AreaBuilder {
             // Simplify geometry
             let simplified = simplify_geometry(&feature.geometry, tolerance);
 
-            // Clip to bbox (simple rejection for now — features already filtered by bbox)
+            // Clip to bbox
             let count = encode_geometry(&feature.kind, &simplified, &projector, &mut feature_buf);
             feature_count += count;
+
+            // Collect label for named roads/trails at their midpoint.
+            // Only label secondary+ roads and named trails — residential streets are too dense.
+            if is_labelable(&feature.kind) {
+                if let Some(name) = name_key
+                    .and_then(|k| feature.tags.get(k))
+                    .map(|v| tag_store.resolve(v))
+                {
+                    if !name.is_empty() {
+                        if let Some((mx, my, angle)) = feature_midpoint(&feature.geometry, &projector) {
+                            let cell = (mx / 24, my / 24);
+                            if !label_cells.contains(&cell) {
+                                let cat = to_category(&feature.kind) as u8;
+                                let short = abbreviate_road_name(name);
+                                let name_bytes = short.as_bytes();
+                                let name_len = name_bytes.len().min(crate::format::MAX_LABEL_NAME_LEN);
+                                label_buf.push(cat);
+                                label_buf.push(mx);
+                                label_buf.push(my);
+                                label_buf.push(angle);
+                                label_buf.push(name_len as u8);
+                                label_buf.extend_from_slice(&name_bytes[..name_len]);
+                                label_cells.insert(cell);
+                                label_count += 1;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Build the final blob
@@ -147,16 +191,19 @@ impl AreaBuilder {
             bbox_max_lat: (bbox.max_lat * 1_000_000.0) as i32,
             feature_count: feature_count.min(u16::MAX as u32) as u16,
             poi_count: poi_count.min(u16::MAX as u32) as u16,
+            label_count: label_count.min(u16::MAX as u32) as u16,
         };
 
-        let mut blob = Vec::with_capacity(32 + feature_buf.len() + poi_buf.len());
+        let mut blob = Vec::with_capacity(32 + feature_buf.len() + poi_buf.len() + label_buf.len());
         blob.extend_from_slice(&header.to_bytes());
         blob.extend_from_slice(&feature_buf);
         blob.extend_from_slice(&poi_buf);
+        blob.extend_from_slice(&label_buf);
 
         tracing::info!(
             features = feature_count,
             pois = poi_count,
+            labels = label_count,
             bytes = blob.len(),
             "compact trail blob built"
         );
@@ -181,6 +228,7 @@ impl AreaBuilder {
 
         let name_key = tag_store.get("name");
         let ele_key = tag_store.get("ele");
+        let footway_key = tag_store.get("footway");
 
         let mut feature_buf = Vec::new();
         let mut poi_buf = Vec::new();
@@ -195,6 +243,16 @@ impl AreaBuilder {
         for feature in all_features {
             if !is_trail_relevant(&feature.kind) {
                 continue;
+            }
+            if matches!(feature.kind, osmic_osm::FeatureKind::Highway(osmic_osm::feature::HighwayKind::Footway)) {
+                if let Some(fk) = footway_key {
+                    if let Some(val) = feature.tags.get(fk) {
+                        let v = tag_store.resolve(val);
+                        if v == "sidewalk" || v == "crossing" {
+                            continue;
+                        }
+                    }
+                }
             }
             if !feature_bbox_intersects(&feature.geometry, bbox) {
                 continue;
@@ -254,6 +312,7 @@ impl AreaBuilder {
             bbox_max_lat: (bbox.max_lat * 1_000_000.0) as i32,
             feature_count: feature_count.min(u16::MAX as u32) as u16,
             poi_count: poi_count.min(u16::MAX as u32) as u16,
+            label_count: 0,  // build_subset doesn't generate labels
         };
 
         let mut blob = Vec::with_capacity(32 + feature_buf.len() + poi_buf.len());
@@ -293,6 +352,63 @@ fn parse_elevation_meters(s: &str) -> Option<u16> {
         return Some(0);
     }
     Some(meters.round().min(u16::MAX as f64) as u16)
+}
+
+/// Abbreviate common road name suffixes (like real cartographic maps).
+fn abbreviate_road_name(name: &str) -> String {
+    let mut result = name.to_string();
+    let replacements = [
+        (" Boulevard", " Blvd"),
+        (" Circle", " Cir"),
+        (" Drive", " Dr"),
+        (" Street", " St"),
+        (" Avenue", " Ave"),
+        (" Place", " Pl"),
+        (" Court", " Ct"),
+        (" Lane", " Ln"),
+        (" Road", " Rd"),
+        (" Trail", " Trl"),
+        (" Parkway", " Pkwy"),
+        (" Highway", " Hwy"),
+        ("South ", "S "),
+        ("North ", "N "),
+        ("East ", "E "),
+        ("West ", "W "),
+    ];
+    for (from, to) in &replacements {
+        if result.contains(from) {
+            result = result.replace(from, to);
+        }
+    }
+    result
+}
+
+/// Compute the midpoint and angle of a line feature for label placement.
+/// Returns (px, py, angle_u8) where angle is 0-255 mapping to 0-360°.
+fn feature_midpoint(geometry: &Geometry, projector: &PixelProjector) -> Option<(u8, u8, u8)> {
+    let coords: Vec<(f64, f64)> = match geometry {
+        Geometry::Line(ls) => ls.coords().map(|c| (c.x, c.y)).collect(),
+        _ => return None,
+    };
+    if coords.len() < 2 {
+        return None;
+    }
+    // Find the midpoint along the polyline
+    let mid_idx = coords.len() / 2;
+    let (lon, lat) = coords[mid_idx];
+    let (px, py) = projector.project(lon, lat);
+
+    // Compute angle from the segment at the midpoint
+    let (lon0, lat0) = coords[mid_idx.saturating_sub(1)];
+    let (lon1, lat1) = coords[(mid_idx + 1).min(coords.len() - 1)];
+    let (px0, py0) = projector.project(lon0, lat0);
+    let (px1, py1) = projector.project(lon1, lat1);
+    let dx = px1 as f64 - px0 as f64;
+    let dy = py1 as f64 - py0 as f64;
+    let angle_rad = dy.atan2(dx);  // 0 = east, pi/2 = south (pixel space)
+    let angle_u8 = ((angle_rad * 128.0 / std::f64::consts::PI + 256.0) % 256.0) as u8;
+
+    Some((px, py, angle_u8))
 }
 
 /// Check if a feature's geometry bbox intersects the target area.
