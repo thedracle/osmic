@@ -404,20 +404,49 @@ async fn bbox_bundle(
 
     info!(name = %cache_name, "generating bbox bundle");
 
-    let tpak = bundle::generate_bundle(
-        &region_data.features,
-        &region_data.tag_store,
-        &region_data.feature_index,
-        &config,
-    );
+    // Estimate tile count to decide in-memory vs streaming
+    let lat_cells = ((bbox.max_lat - bbox.min_lat) / state.grid_step).ceil() as usize;
+    let lon_cells = ((bbox.max_lon - bbox.min_lon) / state.grid_step).ceil() as usize;
+    let est_tiles = lat_cells * lon_cells;
 
-    // Cache to disk
-    let _ = std::fs::write(&bundle_path, &tpak);
+    if est_tiles > 500 {
+        // Large region: stream to disk (O(1) memory)
+        info!(est_tiles, "using streaming file writer");
+        match bundle::generate_bundle_to_file(
+            &bundle_path,
+            &region_data.features,
+            &region_data.tag_store,
+            &region_data.feature_index,
+            &config,
+        ) {
+            Ok(_) => {
+                match std::fs::read(&bundle_path) {
+                    Ok(data) => {
+                        let mut headers = HeaderMap::new();
+                        headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+                        headers.insert("Cache-Control", "public, max-age=86400".parse().unwrap());
+                        (StatusCode::OK, headers, data).into_response()
+                    }
+                    Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("read error: {e}")).into_response(),
+                }
+            }
+            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("generate error: {e}")).into_response(),
+        }
+    } else {
+        // Small region: in-memory (faster, no disk I/O overhead)
+        let tpak = bundle::generate_bundle(
+            &region_data.features,
+            &region_data.tag_store,
+            &region_data.feature_index,
+            &config,
+        );
+        let _ = std::fs::write(&bundle_path, &tpak);
 
-    let mut headers = HeaderMap::new();
-    headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
-    headers.insert("Cache-Control", "public, max-age=86400".parse().unwrap());
-    (StatusCode::OK, headers, tpak).into_response()
+        let mut headers = HeaderMap::new();
+        headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+        headers.insert("Cache-Control", "public, max-age=86400".parse().unwrap());
+        (StatusCode::OK, headers, tpak).into_response()
+    }
 }
 
 /// Serve a bundle file for download.
