@@ -341,6 +341,85 @@ async fn generate_bundle_endpoint(
     })).into_response()
 }
 
+/// Generate and return a bundle for a bbox (POST-style via GET for simplicity).
+/// The companion app sends the user's selected rectangle.
+/// GET /bundles/bbox?min_lat=40.4&min_lon=-112.0&max_lat=41.0&max_lon=-111.5
+/// Returns the TPAK binary directly (or from cache if already generated).
+#[derive(Deserialize)]
+struct BboxBundleParams {
+    min_lat: f64,
+    min_lon: f64,
+    max_lat: f64,
+    max_lon: f64,
+}
+
+async fn bbox_bundle(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<BboxBundleParams>,
+) -> impl IntoResponse {
+    // Create a cache key from the bbox (snapped to grid)
+    let step = state.grid_step;
+    let snap = |v: f64| -> f64 { (v / step).floor() * step };
+    let cache_name = format!(
+        "bbox_{:.2}_{:.2}_{:.2}_{:.2}",
+        snap(params.min_lat), snap(params.min_lon),
+        snap(params.max_lat), snap(params.max_lon)
+    );
+    let bundle_path = state.data_dir.join("bundles").join(format!("{cache_name}.tpak"));
+
+    // Serve from cache if exists
+    if bundle_path.exists() {
+        if let Ok(data) = std::fs::read(&bundle_path) {
+            let mut headers = HeaderMap::new();
+            headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+            headers.insert("Cache-Control", "public, max-age=86400".parse().unwrap());
+            return (StatusCode::OK, headers, data).into_response();
+        }
+    }
+
+    // Need to load the region — use center point to find it
+    let center_lat = (params.min_lat + params.max_lat) / 2.0;
+    let center_lon = (params.min_lon + params.max_lon) / 2.0;
+
+    let region_data = match state.region_manager.get_region(center_lat, center_lon).await {
+        Some(d) => d,
+        None => return (StatusCode::NOT_FOUND, "no region data for this area").into_response(),
+    };
+
+    let bbox = BBox {
+        min_lat: params.min_lat,
+        min_lon: params.min_lon,
+        max_lat: params.max_lat,
+        max_lon: params.max_lon,
+    };
+
+    let config = bundle::BundleConfig {
+        region_bbox: bbox,
+        grid_step: state.grid_step,
+        display_width: 176,
+        display_height: 176,
+        contour_interval: 40,
+        hgt_dir: state.data_dir.join("dem").to_string_lossy().to_string(),
+    };
+
+    info!(name = %cache_name, "generating bbox bundle");
+
+    let tpak = bundle::generate_bundle(
+        &region_data.features,
+        &region_data.tag_store,
+        &region_data.feature_index,
+        &config,
+    );
+
+    // Cache to disk
+    let _ = std::fs::write(&bundle_path, &tpak);
+
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+    headers.insert("Cache-Control", "public, max-age=86400".parse().unwrap());
+    (StatusCode::OK, headers, tpak).into_response()
+}
+
 /// Serve a bundle file for download.
 async fn serve_bundle(
     State(state): State<Arc<AppState>>,
@@ -437,6 +516,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(health))
         .route("/bundles/index.json", get(list_bundles))
         .route("/bundles/generate", get(generate_bundle_endpoint))
+        .route("/bundles/bbox", get(bbox_bundle))
         .route("/bundles/{filename}", get(serve_bundle))
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state);
