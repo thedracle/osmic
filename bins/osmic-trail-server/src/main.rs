@@ -1,3 +1,4 @@
+mod bundle;
 mod manager;
 mod region;
 
@@ -227,6 +228,149 @@ async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     }))
 }
 
+/// List available bundles with metadata.
+async fn list_bundles(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let bundle_dir = state.data_dir.join("bundles");
+    let mut bundles = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(&bundle_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("tpak") {
+                let filename = path.file_name().unwrap().to_string_lossy().to_string();
+                let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                // Read tile count from header
+                let tile_count = std::fs::read(&path)
+                    .ok()
+                    .and_then(|data| {
+                        if data.len() >= 8 && &data[0..4] == b"TPAK" {
+                            Some(u32::from_le_bytes([data[4], data[5], data[6], data[7]]))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(0);
+
+                bundles.push(serde_json::json!({
+                    "filename": filename,
+                    "size": size,
+                    "tiles": tile_count,
+                    "url": format!("/bundles/{}", filename),
+                }));
+            }
+        }
+    }
+
+    Json(serde_json::json!({ "bundles": bundles }))
+}
+
+/// Generate a bundle for a region (POST /bundles/generate).
+/// Query params: lat, lon (to identify the Geofabrik region), name (output filename)
+#[derive(Deserialize)]
+struct GenerateParams {
+    lat: f64,
+    lon: f64,
+    name: String,
+    #[serde(default = "default_min_lat")]
+    min_lat: Option<f64>,
+    #[serde(default)]
+    min_lon: Option<f64>,
+    #[serde(default)]
+    max_lat: Option<f64>,
+    #[serde(default)]
+    max_lon: Option<f64>,
+}
+fn default_min_lat() -> Option<f64> { None }
+
+async fn generate_bundle_endpoint(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GenerateParams>,
+) -> impl IntoResponse {
+    // Load the region for this lat/lon
+    let region_data = match state.region_manager.get_region(params.lat, params.lon).await {
+        Some(d) => d,
+        None => return (StatusCode::NOT_FOUND, "no region for this location").into_response(),
+    };
+
+    // Use custom bbox if provided, otherwise use region bbox
+    let bbox = if let (Some(min_lat), Some(min_lon), Some(max_lat), Some(max_lon)) =
+        (params.min_lat, params.min_lon, params.max_lat, params.max_lon) {
+        BBox { min_lon, min_lat, max_lon, max_lat }
+    } else {
+        // Use region's full bbox
+        BBox {
+            min_lat: params.lat - 0.5,
+            max_lat: params.lat + 0.5,
+            min_lon: params.lon - 0.5,
+            max_lon: params.lon + 0.5,
+        }
+    };
+
+    let config = bundle::BundleConfig {
+        region_bbox: bbox,
+        grid_step: state.grid_step,
+        display_width: 176,
+        display_height: 176,
+        contour_interval: 40,
+        hgt_dir: state.data_dir.join("dem").to_string_lossy().to_string(),
+    };
+
+    info!(name = %params.name, "generating bundle");
+
+    // Generate synchronously (region data is Arc'd, no clone needed)
+    let tpak = bundle::generate_bundle(
+        &region_data.features,
+        &region_data.tag_store,
+        &region_data.feature_index,
+        &config,
+    );
+
+    // Save to disk
+    let bundle_path = state.data_dir.join("bundles").join(format!("{}.tpak", params.name));
+    if let Err(e) = std::fs::write(&bundle_path, &tpak) {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("write error: {e}")).into_response();
+    }
+
+    info!(name = %params.name, tiles = tpak.len(), "bundle saved");
+
+    Json(serde_json::json!({
+        "status": "generated",
+        "name": params.name,
+        "size": tpak.len(),
+        "path": format!("/bundles/{}.tpak", params.name),
+    })).into_response()
+}
+
+/// Serve a bundle file for download.
+async fn serve_bundle(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(filename): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    // Sanitize filename
+    if filename.contains("..") || filename.contains('/') {
+        return (StatusCode::BAD_REQUEST, "invalid filename").into_response();
+    }
+
+    let path = state.data_dir.join("bundles").join(&filename);
+    if !path.exists() {
+        return (StatusCode::NOT_FOUND, "bundle not found").into_response();
+    }
+
+    match std::fs::read(&path) {
+        Ok(data) => {
+            let mut headers = HeaderMap::new();
+            headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+            headers.insert(
+                "Content-Disposition",
+                format!("attachment; filename=\"{}\"", filename).parse().unwrap(),
+            );
+            headers.insert("Cache-Control", "public, max-age=86400".parse().unwrap());
+            (StatusCode::OK, headers, data).into_response()
+        }
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "read error").into_response(),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -237,6 +381,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args = Args::parse();
+    let data_dir = args.data_dir.clone();
+    let _ = std::fs::create_dir_all(data_dir.join("bundles"));
 
     // Load Geofabrik region index
     let registry = RegionRegistry::load(&args.data_dir)?;
@@ -281,15 +427,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         region_manager,
         grid_step: args.grid_step,
         chunk_size: args.chunk_size,
-        data_dir: args.data_dir,
+        data_dir,
         tile_cache: RwLock::new(HashMap::new()),
     });
+
 
     let app = axum::Router::new()
         .route("/tile", get(get_tile))
         .route("/health", get(health))
+        .route("/bundles/index.json", get(list_bundles))
+        .route("/bundles/generate", get(generate_bundle_endpoint))
+        .route("/bundles/{filename}", get(serve_bundle))
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state);
+
+    // -- Bundle endpoint handlers are defined below --
 
     let listener = tokio::net::TcpListener::bind(&args.bind).await?;
     info!(bind = %args.bind, "server listening");
